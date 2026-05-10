@@ -1,0 +1,6 @@
+[gd_scene format=3]
+
+[ext_resource type="Script" path="res://scripts/glitter_emitter.gd" id="1_glitter"]
+
+[node name="GlitterEmitter" type="GPUParticles2D"]
+script = ExtResource("1_glitter")

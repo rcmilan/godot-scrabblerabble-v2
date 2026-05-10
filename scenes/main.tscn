@@ -1,45 +1,146 @@
 [gd_scene format=3 uid="uid://cao1bxd4y4usx"]
 
-[ext_resource type="Script" uid="uid://cful6fkudmm10" path="res://scripts/main.gd" id="1_tbgi4"]
-[ext_resource type="Script" uid="uid://csocuex4ng7m0" path="res://scripts/board.gd" id="2_tefeu"]
-[ext_resource type="Script" uid="uid://cuetud868qr0e" path="res://scripts/rack.gd" id="3_o6xl0"]
+[ext_resource type="Script" uid="uid://cful6fkudmm10" path="res://scripts/main.gd" id="1_main"]
+[ext_resource type="Script" uid="uid://csocuex4ng7m0" path="res://scripts/board.gd" id="2_board"]
+[ext_resource type="Script" uid="uid://cuetud868qr0e" path="res://scripts/rack.gd" id="3_rack"]
+[ext_resource type="Theme" uid="uid://3pupw0vetlo0" path="res://theme/win95.tres" id="4_theme"]
+[ext_resource type="PackedScene" path="res://scenes/CRTOverlay.tscn" id="5_crt"]
+[ext_resource type="Shader" path="res://shaders/holographic.gdshader" id="6_holo"]
 
-[node name="Main" type="Control" unique_id=1167685906]
+[sub_resource type="FastNoiseLite" id="FNL_Score"]
+noise_type = 1
+
+[sub_resource type="NoiseTexture2D" id="NT_Score"]
+width = 64
+height = 64
+seamless = true
+noise = SubResource("FNL_Score")
+
+[sub_resource type="ShaderMaterial" id="SM_Holo"]
+shader = ExtResource("6_holo")
+shader_parameter/speed = 1.2
+shader_parameter/intensity = 0.5
+shader_parameter/noise_tex = SubResource("NT_Score")
+
+[node name="Main" type="Control"]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1_tbgi4")
+theme = ExtResource("4_theme")
+script = ExtResource("1_main")
 
-[node name="VBoxContainer" type="VBoxContainer" parent="." unique_id=1234617398]
-layout_mode = 0
-offset_right = 40.0
-offset_bottom = 40.0
+[node name="CRTOverlay" parent="." instance=ExtResource("5_crt")]
+
+[node name="WinFrame" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_type_variation = &"WindowFrame"
+
+[node name="InnerVBox" type="VBoxContainer" parent="WinFrame"]
+layout_mode = 1
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 2.0
+offset_top = 2.0
+offset_right = -2.0
+offset_bottom = -2.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="TitleBar" type="Panel" parent="WinFrame/InnerVBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 22)
+theme_type_variation = &"TitleBar"
+
+[node name="TitleContent" type="HBoxContainer" parent="WinFrame/InnerVBox/TitleBar"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+offset_left = 4.0
+offset_right = -2.0
+
+[node name="TitleLabel" type="Label" parent="WinFrame/InnerVBox/TitleBar/TitleContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "ScrabbleRabble 95"
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+
+[node name="WinButtons" type="HBoxContainer" parent="WinFrame/InnerVBox/TitleBar/TitleContent"]
+layout_mode = 2
+size_flags_horizontal = 8
+separation = 2
+
+[node name="MinBtn" type="Button" parent="WinFrame/InnerVBox/TitleBar/TitleContent/WinButtons"]
+layout_mode = 2
+custom_minimum_size = Vector2(16, 14)
+focus_mode = 0
+text = "-"
+flat = false
+
+[node name="MaxBtn" type="Button" parent="WinFrame/InnerVBox/TitleBar/TitleContent/WinButtons"]
+layout_mode = 2
+custom_minimum_size = Vector2(16, 14)
+focus_mode = 0
+text = "O"
+flat = false
+
+[node name="CloseBtn" type="Button" parent="WinFrame/InnerVBox/TitleBar/TitleContent/WinButtons"]
+layout_mode = 2
+custom_minimum_size = Vector2(16, 14)
+focus_mode = 0
+text = "X"
+flat = false
+
+[node name="GameArea" type="VBoxContainer" parent="WinFrame/InnerVBox"]
+layout_mode = 2
+size_flags_vertical = 3
 alignment = 1
 
-[node name="HUD" type="HBoxContainer" parent="VBoxContainer" unique_id=2098307071]
+[node name="HUD" type="HBoxContainer" parent="WinFrame/InnerVBox/GameArea"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+alignment = 1
+
+[node name="ScoreLabel" type="Label" parent="WinFrame/InnerVBox/GameArea/HUD"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+material = SubResource("SM_Holo")
+theme_type_variation = &"ScoreNeon"
+text = "Score: 0"
+
+[node name="TilesLeftLabel" type="Label" parent="WinFrame/InnerVBox/GameArea/HUD"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Placed: 0 / 4"
+
+[node name="EndTurnButton" type="Button" parent="WinFrame/InnerVBox/GameArea/HUD"]
+unique_name_in_owner = true
+layout_mode = 2
+text = "END TURN"
+
+[node name="Board" type="GridContainer" parent="WinFrame/InnerVBox/GameArea"]
+unique_name_in_owner = true
+layout_mode = 2
+size_flags_horizontal = 4
+size_flags_vertical = 4
+script = ExtResource("2_board")
+
+[node name="Rack" type="HBoxContainer" parent="WinFrame/InnerVBox/GameArea"]
+unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 4
 alignment = 1
-
-[node name="ScoreLabel" type="Label" parent="VBoxContainer/HUD" unique_id=943662848]
-layout_mode = 2
-
-[node name="TilesLeftLabel" type="Label" parent="VBoxContainer/HUD" unique_id=1209468669]
-layout_mode = 2
-
-[node name="EndTurnButton" type="Button" parent="VBoxContainer/HUD" unique_id=1948938794]
-layout_mode = 2
-
-[node name="Board" type="GridContainer" parent="VBoxContainer" unique_id=334574979]
-layout_mode = 2
-size_flags_vertical = 4
-script = ExtResource("2_tefeu")
-
-[node name="Rack" type="HBoxContainer" parent="VBoxContainer" unique_id=1043778423]
-layout_mode = 2
-size_flags_vertical = 4
-alignment = 1
-script = ExtResource("3_o6xl0")
+script = ExtResource("3_rack")

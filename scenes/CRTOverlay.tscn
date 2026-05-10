@@ -1,0 +1,25 @@
+[gd_scene format=3]
+
+[ext_resource type="Shader" path="res://shaders/scanlines.gdshader" id="1_scanlines"]
+
+[sub_resource type="ShaderMaterial" id="SM_CRT"]
+shader = ExtResource("1_scanlines")
+shader_parameter/scanline_intensity = 0.15
+shader_parameter/flicker_intensity = 0.015
+shader_parameter/chromatic_aberration = 0.8
+shader_parameter/viewport_size = Vector2(800, 600)
+shader_parameter/vignette_color = Color(0, 0, 0, 1)
+shader_parameter/vignette_strength = 0.25
+
+[node name="CRTOverlay" type="CanvasLayer"]
+layer = 100
+
+[node name="CRTRect" type="ColorRect" parent="."]
+material = SubResource("SM_CRT")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0, 0, 0, 0)

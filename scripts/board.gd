@@ -20,7 +20,7 @@ func _ready() -> void:
 		for x in BOARD_SIZE:
 			var cell := CELL_SCENE.instantiate() as BoardCell
 			cell.grid_pos = Vector2i(x, y)
-			cell.custom_minimum_size = Vector2(64, 64)
+			cell.custom_minimum_size = Vector2(56, 56)
 			add_child(cell)
 			cell.focus_entered.connect(func(): cell_focused.emit(cell))
 			cells[x][y] = cell
