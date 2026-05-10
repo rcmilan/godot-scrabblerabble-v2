@@ -1,0 +1,37 @@
+[gd_scene format=3 uid="uid://c6tg3x1bqblmb"]
+
+[ext_resource type="Script" uid="uid://dwabei8id3ql3" path="res://scripts/tile.gd" id="1_3dk36"]
+
+[node name="Tile" type="Panel" unique_id=1041296130]
+custom_minimum_size = Vector2(56, 56)
+offset_right = 40.0
+offset_bottom = 40.0
+script = ExtResource("1_3dk36")
+
+[node name="LetterLabel" type="Label" parent="." unique_id=935191621]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -0.5
+offset_top = -11.5
+offset_right = 0.5
+offset_bottom = 11.5
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 28
+
+[node name="PointLabel" type="Label" parent="." unique_id=1706222873]
+layout_mode = 1
+anchors_preset = 3
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -40.0
+offset_top = -23.0
+grow_horizontal = 0
+grow_vertical = 0
+theme_override_font_sizes/font_size = 12
