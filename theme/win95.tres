@@ -1,0 +1,133 @@
+[gd_resource type="Theme" load_steps=12 format=3 uid="uid://3pupw0vetlo0"]
+
+[ext_resource type="FontFile" path="res://fonts/W95FA.otf" id="1_w95fa"]
+
+[sub_resource type="StyleBoxFlat" id="SB_RaisedOuter"]
+content_margin_left = 4.0
+content_margin_top = 4.0
+content_margin_right = 4.0
+content_margin_bottom = 4.0
+bg_color = Color(0.7529, 0.7529, 0.7529, 1)   ; #C0C0C0
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.039, 0.039, 0.039, 1)   ; #0A0A0A
+anti_aliasing = false
+corner_radius_top_left = 0
+corner_radius_top_right = 0
+corner_radius_bottom_left = 0
+corner_radius_bottom_right = 0
+
+[sub_resource type="StyleBoxFlat" id="SB_RaisedNormal"]
+; truque: usamos ESTE como o style "normal" e desenhamos o bevel via 9-slice texture na verdade.
+; Aqui um fallback aproximado só com StyleBoxFlat:
+content_margin_left = 4.0
+content_margin_top = 4.0
+content_margin_right = 4.0
+content_margin_bottom = 4.0
+bg_color = Color(0.7529, 0.7529, 0.7529, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 1, 1, 1)              ; aproximação: brilho. Para a sombra preta na base, prefira StyleBoxTexture 9-slice.
+anti_aliasing = false
+
+[sub_resource type="StyleBoxFlat" id="SB_RaisedPressed"]
+content_margin_left = 5.0
+content_margin_top = 5.0
+content_margin_right = 3.0
+content_margin_bottom = 3.0
+bg_color = Color(0.7529, 0.7529, 0.7529, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.5019, 0.5019, 0.5019, 1)   ; #808080
+anti_aliasing = false
+
+[sub_resource type="StyleBoxFlat" id="SB_Sunken"]
+content_margin_left = 4.0
+content_margin_top = 4.0
+content_margin_right = 4.0
+content_margin_bottom = 4.0
+bg_color = Color(1, 1, 1, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.5019, 0.5019, 0.5019, 1)   ; sombra Win95 (a borda inversa "branca" não é representável aqui — use 9-slice se quiser perfeito)
+anti_aliasing = false
+
+[sub_resource type="StyleBoxFlat" id="SB_TitleBar"]
+content_margin_left = 4.0
+content_margin_top = 2.0
+content_margin_right = 4.0
+content_margin_bottom = 2.0
+bg_color = Color(0, 0, 0.5019, 1)             ; #000080
+border_width_left = 0
+border_width_top = 0
+border_width_right = 0
+border_width_bottom = 0
+anti_aliasing = false
+
+[sub_resource type="StyleBoxFlat" id="SB_Tile"]
+content_margin_left = 4.0
+content_margin_top = 4.0
+content_margin_right = 4.0
+content_margin_bottom = 4.0
+bg_color = Color(1, 1, 0.7529, 1)             ; creme Scrabble #FFFFC0
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(1, 1, 1, 1)
+anti_aliasing = false
+
+[sub_resource type="StyleBoxFlat" id="SB_Focus"]
+draw_center = false
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0, 0, 0, 1)
+anti_aliasing = false
+
+[resource]
+default_font = ExtResource("1_w95fa")
+default_font_size = 12
+
+; --- Panel base ---
+Panel/styles/panel = SubResource("SB_RaisedOuter")
+
+; --- Button base ---
+Button/styles/normal = SubResource("SB_RaisedNormal")
+Button/styles/hover = SubResource("SB_RaisedNormal")
+Button/styles/pressed = SubResource("SB_RaisedPressed")
+Button/styles/focus = SubResource("SB_Focus")
+Button/colors/font_color = Color(0, 0, 0, 1)
+Button/font_sizes/font_size = 12
+
+; --- Label base ---
+Label/colors/font_color = Color(0, 0, 0, 1)
+Label/font_sizes/font_size = 12
+
+; --- Type variation: TitleBar (extends Panel) ---
+TitleBar/base_type = &"Panel"
+TitleBar/styles/panel = SubResource("SB_TitleBar")
+
+; --- Type variation: Tile (extends Panel) ---
+Tile/base_type = &"Panel"
+Tile/styles/panel = SubResource("SB_Tile")
+
+; --- Type variation: BoardCell (extends Panel) ---
+BoardCell/base_type = &"Panel"
+BoardCell/styles/panel = SubResource("SB_Sunken")
+
+; --- Type variation: ScoreNeon (extends Label) ---
+ScoreNeon/base_type = &"Label"
+ScoreNeon/colors/font_color = Color(0, 1, 0, 1)
+ScoreNeon/colors/font_outline_color = Color(0, 0, 0.5019, 1)
+ScoreNeon/constants/outline_size = 2
+ScoreNeon/font_sizes/font_size = 22
