@@ -19,7 +19,9 @@ func _ready() -> void:
 	var grad := Gradient.new()
 	grad.colors  = [Color("#00FFFF"), Color("#FF00FF"), Color("#FFD700"), Color(1, 1, 1, 0)]
 	grad.offsets = [0.0, 0.3, 0.6, 1.0]
-	pm.color_ramp = grad
+	var ramp := GradientTexture1D.new()
+	ramp.gradient = grad
+	pm.color_ramp = ramp
 
 	process_material = pm
 	amount          = 24
