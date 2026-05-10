@@ -1,5 +1,7 @@
 [gd_resource type="Theme" format=3 uid="uid://3pupw0vetlo0"]
 
+[ext_resource type="FontFile" uid="uid://dw6c7v1idqo4c" path="res://fonts/W95FA.otf" id="FF_W95FA"]
+
 [sub_resource type="StyleBoxFlat" id="SB_Sunken"]
 content_margin_left = 4.0
 content_margin_top = 4.0
@@ -108,6 +110,7 @@ border_color = Color(0.7529, 0.7529, 0.7529, 1)
 anti_aliasing = false
 
 [resource]
+default_font = ExtResource("FF_W95FA")
 default_font_size = 11
 BoardCell/base_type = &"Panel"
 BoardCell/styles/panel = SubResource("SB_Sunken")
