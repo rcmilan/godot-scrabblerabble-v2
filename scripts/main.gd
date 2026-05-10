@@ -1,24 +1,25 @@
 # res://scripts/main.gd
 extends Control
 
-const TILES_PER_TURN: int = 4   # quantas peças o jogador deve colocar antes de pontuar
-const WORD_BONUS_MULTIPLIER: int = 2  # bônus aplicado por palavra válida
+const TILES_PER_TURN:       int = 4
+const WORD_BONUS_MULTIPLIER: int = 2
 
-@onready var board: Board = $VBoxContainer/Board
-@onready var rack: Rack = $VBoxContainer/Rack
-@onready var score_label: Label = $VBoxContainer/HUD/ScoreLabel
-@onready var tiles_left_label: Label = $VBoxContainer/HUD/TilesLeftLabel
-@onready var end_turn_button: Button = $VBoxContainer/HUD/EndTurnButton
+const GLITTER_SCENE := preload("res://scenes/GlitterEmitter.tscn")
 
-var total_score: int = 0
-var pending_cells: Array[BoardCell] = []   # células com peças colocadas neste turno
-var cursor: Vector2i = Vector2i(0, 0)
+@onready var board:            Board  = %Board
+@onready var rack:             Rack   = %Rack
+@onready var score_label:      Label  = %ScoreLabel
+@onready var tiles_left_label: Label  = %TilesLeftLabel
+@onready var end_turn_button:  Button = %EndTurnButton
+
+var total_score:   int = 0
+var pending_cells: Array[BoardCell] = []
+var cursor:        Vector2i = Vector2i(0, 0)
 
 func _ready() -> void:
 	add_to_group("main")
 	randomize()
 	end_turn_button.pressed.connect(_on_end_turn_pressed)
-	# Foco inicial na célula central.
 	cursor = Vector2i(3, 3)
 	board.focus_cell(cursor)
 	board.cell_focused.connect(_on_cell_focused)
@@ -27,9 +28,8 @@ func _ready() -> void:
 func _on_cell_focused(cell: BoardCell) -> void:
 	cursor = cell.grid_pos
 
-# ---------- Input: teclado ----------
+# ---------- Input ----------
 func _unhandled_input(event: InputEvent) -> void:
-	# Move cursor com setas (usa as ações padrão ui_left/right/up/down).
 	if event.is_action_pressed("ui_left"):
 		_move_cursor(Vector2i(-1, 0))
 		get_viewport().set_input_as_handled()
@@ -44,12 +44,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("confirm_turn"):
 		_on_end_turn_pressed()
-	# Letra A-Z para colocar uma peça do rack na célula atual.
 	elif event is InputEventKey and event.pressed and not event.echo:
 		var key_event := event as InputEventKey
 		if key_event.keycode >= KEY_A and key_event.keycode <= KEY_Z:
-			var letter := char(key_event.keycode)  # 'A'..'Z'
-			_try_place_letter_on_cursor(letter)
+			_try_place_letter_on_cursor(char(key_event.keycode))
 
 func _move_cursor(delta: Vector2i) -> void:
 	var new_pos := cursor + delta
@@ -67,7 +65,7 @@ func _try_place_letter_on_cursor(letter: String) -> void:
 		return
 	_place_tile_on_cell(tile, cell)
 
-# ---------- Drag and drop callbacks (chamados por BoardCell e Rack) ----------
+# ---------- Drag and drop ----------
 func on_tile_dropped_on_cell(tile: Tile, cell: BoardCell) -> void:
 	if not cell.is_empty():
 		return
@@ -86,13 +84,10 @@ func on_tile_returned_to_rack(tile: Tile) -> void:
 	rack.add_child(tile)
 	rack.tiles_in_hand.append(tile)
 	_update_hud()
-	
+
 func _place_tile_on_cell(tile: Tile, cell: BoardCell) -> void:
 	rack.remove_tile(tile)
 	cell.place_tile(tile)
-	# Hide the tile node: the cell's Label already shows the letter.
-	# We keep the Tile alive (parented to Main, hidden) so drag/return logic
-	# can still reference it until lock_pending() frees it.
 	if tile.get_parent():
 		tile.get_parent().remove_child(tile)
 	add_child(tile)
@@ -101,25 +96,30 @@ func _place_tile_on_cell(tile: Tile, cell: BoardCell) -> void:
 	_update_hud()
 	if pending_cells.size() >= TILES_PER_TURN:
 		_on_end_turn_pressed()
-		
-# ---------- Final do turno: pontuar ----------
+
+# ---------- End of turn ----------
 func _on_end_turn_pressed() -> void:
 	if pending_cells.is_empty():
 		return
 	var turn_score := _calculate_turn_score()
+	if turn_score > 0:
+		for c: BoardCell in pending_cells:
+			_spawn_glitter_at(c)
 	total_score += turn_score
-	# "Tranca" as letras colocadas e completa o rack.
 	for c in pending_cells:
 		c.lock_pending()
 	pending_cells.clear()
 	rack.refill()
 	_update_hud()
 
+func _spawn_glitter_at(cell: BoardCell) -> void:
+	var emitter: GPUParticles2D = GLITTER_SCENE.instantiate()
+	add_child(emitter)
+	emitter.global_position = cell.global_position + Vector2(cell.size) * 0.5
+
 func _calculate_turn_score() -> int:
-	# 1) Coleta todas as palavras formadas (horizontal + vertical) que toquem
-	#    em pelo menos uma célula nova deste turno.
-	var words_found: Array = []  # cada item: { "letters": [{cell, letter}], "text": String }
-	var seen_lines: Dictionary = {}  # evita contar a mesma palavra duas vezes
+	var words_found: Array = []
+	var seen_lines: Dictionary = {}
 
 	for cell in pending_cells:
 		var horiz := _extract_word_in_direction(cell, Vector2i(1, 0))
@@ -131,7 +131,6 @@ func _calculate_turn_score() -> int:
 			words_found.append(vert)
 			seen_lines["V_" + str(vert.start)] = true
 
-	# 2) Soma pontos.
 	var total := 0
 	for w in words_found:
 		var word_points := 0
@@ -145,10 +144,7 @@ func _calculate_turn_score() -> int:
 		total += word_points
 	return total
 
-# Retorna { text: "ABC", start: Vector2i } percorrendo a partir de `cell`
-# para trás e para frente na direção dada (1,0) ou (0,1).
 func _extract_word_in_direction(cell: BoardCell, dir: Vector2i) -> Dictionary:
-	# Volta até o início da sequência contígua de letras.
 	var start_pos := cell.grid_pos
 	while true:
 		var prev := start_pos - dir
@@ -156,7 +152,6 @@ func _extract_word_in_direction(cell: BoardCell, dir: Vector2i) -> Dictionary:
 		if prev_cell == null or prev_cell.get_letter() == "":
 			break
 		start_pos = prev
-	# Avança coletando letras.
 	var text := ""
 	var p := start_pos
 	while true:
@@ -169,4 +164,4 @@ func _extract_word_in_direction(cell: BoardCell, dir: Vector2i) -> Dictionary:
 
 func _update_hud() -> void:
 	score_label.text = "Score: %d" % total_score
-	tiles_left_label.text = "Placed this turn: %d / %d" % [pending_cells.size(), TILES_PER_TURN]
+	tiles_left_label.text = "Placed: %d / %d" % [pending_cells.size(), TILES_PER_TURN]

@@ -2,7 +2,7 @@ shader_type canvas_item;
 
 uniform float speed : hint_range(0.1, 5.0) = 1.5;
 uniform float intensity : hint_range(0.0, 1.0) = 0.6;
-uniform sampler2D noise_tex : repeat_enable, filter_linear;
+uniform sampler2D noise_tex : repeat_enable, filter_linear, hint_default_white;
 
 vec3 hue2rgb(float h){
     return clamp(abs(mod(h*6.0+vec3(0.0,4.0,2.0),6.0)-3.0)-1.0, 0.0, 1.0);

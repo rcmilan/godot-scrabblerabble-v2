@@ -4,7 +4,7 @@ uniform sampler2D screen_tex : hint_screen_texture, filter_linear_mipmap;
 uniform float scanline_intensity : hint_range(0.0, 1.0) = 0.20;
 uniform float flicker_intensity : hint_range(0.0, 0.2) = 0.025;
 uniform float chromatic_aberration : hint_range(0.0, 4.0) = 1.0;
-uniform vec2 viewport_size = vec2(640.0, 480.0);
+uniform vec2 viewport_size = vec2(800.0, 600.0);
 uniform vec4 vignette_color : source_color = vec4(0.0, 0.0, 0.0, 1.0);
 uniform float vignette_strength : hint_range(0.0, 1.0) = 0.35;
 
