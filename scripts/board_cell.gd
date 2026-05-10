@@ -15,6 +15,8 @@ const C_INNER_LIGHT := Color("#DFDFDF")
 const C_INNER_DARK  := Color("#808080")
 const C_OUTER_DARK  := Color("#0A0A0A")
 const C_CURSOR      := Color("#00FFFF")
+const C_BG_EMPTY    := Color("#C0C0C0")
+const C_BG_TILE     := Color("#FFFFC0")
 const CURSOR_PERIOD := 0.5
 
 var _cursor_visible := true
@@ -53,17 +55,34 @@ func _process(delta: float) -> void:
 		queue_redraw()
 
 func _draw() -> void:
-	var w := int(size.x)
-	var h := int(size.y)
-	# Sunken bevel: dark top-left edges, light bottom-right edges
-	draw_line(Vector2(0, 0),   Vector2(w - 1, 0),   C_INNER_DARK)
-	draw_line(Vector2(0, 0),   Vector2(0, h - 1),   C_INNER_DARK)
-	draw_line(Vector2(1, 1),   Vector2(w - 2, 1),   C_OUTER_DARK)
-	draw_line(Vector2(1, 1),   Vector2(1, h - 2),   C_OUTER_DARK)
-	draw_line(Vector2(w - 2, 1), Vector2(w - 2, h - 2), C_INNER_LIGHT)
-	draw_line(Vector2(1, h - 2), Vector2(w - 2, h - 2), C_INNER_LIGHT)
-	draw_line(Vector2(w - 1, 0), Vector2(w - 1, h - 1), C_OUTER_LIGHT)
-	draw_line(Vector2(0, h - 1), Vector2(w - 1, h - 1), C_OUTER_LIGHT)
+	var w      := int(size.x)
+	var h      := int(size.y)
+	var filled := not is_empty()
+
+	# Background — cream when occupied, gray when empty
+	draw_rect(Rect2(0, 0, w, h), C_BG_TILE if filled else C_BG_EMPTY)
+
+	if filled:
+		# Raised bevel: light top-left, dark bottom-right (matches hand tile)
+		draw_line(Vector2(0, 0),     Vector2(w - 1, 0),     C_OUTER_LIGHT)
+		draw_line(Vector2(0, 0),     Vector2(0, h - 1),     C_OUTER_LIGHT)
+		draw_line(Vector2(1, 1),     Vector2(w - 2, 1),     C_INNER_LIGHT)
+		draw_line(Vector2(1, 1),     Vector2(1, h - 2),     C_INNER_LIGHT)
+		draw_line(Vector2(w - 2, 1), Vector2(w - 2, h - 2), C_INNER_DARK)
+		draw_line(Vector2(1, h - 2), Vector2(w - 2, h - 2), C_INNER_DARK)
+		draw_line(Vector2(w - 1, 0), Vector2(w - 1, h - 1), C_OUTER_DARK)
+		draw_line(Vector2(0, h - 1), Vector2(w - 1, h - 1), C_OUTER_DARK)
+	else:
+		# Sunken bevel: dark top-left, light bottom-right (empty cell)
+		draw_line(Vector2(0, 0),     Vector2(w - 1, 0),     C_INNER_DARK)
+		draw_line(Vector2(0, 0),     Vector2(0, h - 1),     C_INNER_DARK)
+		draw_line(Vector2(1, 1),     Vector2(w - 2, 1),     C_OUTER_DARK)
+		draw_line(Vector2(1, 1),     Vector2(1, h - 2),     C_OUTER_DARK)
+		draw_line(Vector2(w - 2, 1), Vector2(w - 2, h - 2), C_INNER_LIGHT)
+		draw_line(Vector2(1, h - 2), Vector2(w - 2, h - 2), C_INNER_LIGHT)
+		draw_line(Vector2(w - 1, 0), Vector2(w - 1, h - 1), C_OUTER_LIGHT)
+		draw_line(Vector2(0, h - 1), Vector2(w - 1, h - 1), C_OUTER_LIGHT)
+
 	if has_focus():
 		draw_rect(Rect2(2, 2, w - 4, h - 4), C_CURSOR, false)
 		if _cursor_visible and is_empty():
@@ -82,6 +101,7 @@ func place_tile(tile: Tile) -> void:
 	label.text = tile.letter
 	tile.location = "board"
 	tile.board_pos = grid_pos
+	queue_redraw()
 	_play_place_animation()
 
 func _play_place_animation() -> void:
@@ -97,6 +117,7 @@ func clear_pending() -> void:
 		label.text = ""
 	else:
 		label.text = locked_letter
+	queue_redraw()
 
 func lock_pending() -> void:
 	if current_tile != null:
@@ -105,6 +126,7 @@ func lock_pending() -> void:
 			current_tile.get_parent().remove_child(current_tile)
 		current_tile.queue_free()
 		current_tile = null
+	queue_redraw()
 
 # --- Drag and drop target ---
 func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
