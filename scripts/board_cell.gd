@@ -84,7 +84,9 @@ func _draw() -> void:
 		draw_line(Vector2(0, h - 1), Vector2(w - 1, h - 1), C_OUTER_LIGHT)
 
 	if has_focus():
-		draw_rect(Rect2(2, 2, w - 4, h - 4), C_CURSOR, false)
+		draw_rect(Rect2(0, 0, w, h),         C_CURSOR,     false)  # outer cyan ring
+		draw_rect(Rect2(1, 1, w - 2, h - 2), C_OUTER_DARK, false)  # dark gap
+		draw_rect(Rect2(2, 2, w - 4, h - 4), C_CURSOR,     false)  # inner cyan ring
 		if _cursor_visible and is_empty():
 			draw_rect(Rect2(size.x * 0.5 - 6.0, size.y - 7.0, 12.0, 2.0), C_CURSOR)
 
