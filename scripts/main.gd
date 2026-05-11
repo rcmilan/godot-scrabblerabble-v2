@@ -4,7 +4,8 @@ extends Control
 const TILES_PER_TURN:       int = 4
 const WORD_BONUS_MULTIPLIER: int = 2
 
-const GLITTER_SCENE := preload("res://scenes/GlitterEmitter.tscn")
+const GLITTER_SCENE   := preload("res://scenes/GlitterEmitter.tscn")
+const GAME_OVER_SCENE := preload("res://scenes/GameOverDialog.tscn")
 
 @onready var board:            Board  = %Board
 @onready var rack:             Rack   = %Rack
@@ -12,7 +13,6 @@ const GLITTER_SCENE := preload("res://scenes/GlitterEmitter.tscn")
 @onready var tiles_left_label: Label  = %TilesLeftLabel
 @onready var end_turn_button:  Button = %EndTurnButton
 
-var total_score:   int = 0
 var pending_cells: Array[BoardCell] = []
 var cursor:        Vector2i = Vector2i(0, 0)
 
@@ -23,6 +23,9 @@ func _ready() -> void:
 	cursor = Vector2i(3, 3)
 	board.focus_cell(cursor)
 	board.cell_focused.connect(_on_cell_focused)
+	RunState.reset()
+	RunState.round_won.connect(_on_round_won)
+	RunState.game_over.connect(_on_game_over)
 	_update_hud()
 
 func _on_cell_focused(cell: BoardCell) -> void:
@@ -105,11 +108,12 @@ func _on_end_turn_pressed() -> void:
 	if turn_score > 0:
 		for c: BoardCell in pending_cells:
 			_spawn_glitter_at(c)
-	total_score += turn_score
 	for c in pending_cells:
 		c.lock_pending()
 	pending_cells.clear()
-	rack.refill()
+	RunState.register_turn_score(turn_score)
+	if not RunState.is_game_over:
+		rack.refill()
 	_update_hud()
 
 func _spawn_glitter_at(cell: BoardCell) -> void:
@@ -163,5 +167,21 @@ func _extract_word_in_direction(cell: BoardCell, dir: Vector2i) -> Dictionary:
 	return {"text": text, "start": start_pos}
 
 func _update_hud() -> void:
-	score_label.text = "Score: %d" % total_score
-	tiles_left_label.text = "Placed: %d / %d" % [pending_cells.size(), TILES_PER_TURN]
+	score_label.text      = "Score: %d (R%d goal %d)" % [RunState.total_score, RunState.current_round, RunState.target_score]
+	tiles_left_label.text = "Round: %d / %d | Turns: %d" % [RunState.round_score, RunState.target_score, RunState.turns_left]
+
+func _on_round_won(_round_num: int, _round_score: int, _target: int) -> void:
+	var emitter: GPUParticles2D = GLITTER_SCENE.instantiate()
+	add_child(emitter)
+	emitter.global_position = board.global_position + board.size * 0.5
+	_update_hud()
+
+func _on_game_over(final_round: int, final_score: int) -> void:
+	print("RunState.history: ", RunState.history)
+	_update_hud()
+	var dialog: Panel = GAME_OVER_SCENE.instantiate()
+	dialog.setup(final_round, final_score)
+	var layer := CanvasLayer.new()
+	layer.layer = 200
+	add_child(layer)
+	layer.add_child(dialog)
