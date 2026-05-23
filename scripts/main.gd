@@ -4,8 +4,8 @@ extends Control
 const TILES_PER_TURN:       int = 4
 const WORD_BONUS_MULTIPLIER: int = 2
 
-const GLITTER_SCENE   := preload("res://scenes/GlitterEmitter.tscn")
-const GAME_OVER_SCENE := preload("res://scenes/GameOverDialog.tscn")
+const GLITTER_SCENE   := preload("res://scenes/glitter_emitter.tscn")
+const GAME_OVER_SCENE := preload("res://scenes/game_over_dialog.tscn")
 
 @onready var board:            Board  = %Board
 @onready var rack:             Rack   = %Rack

@@ -1,6 +1,6 @@
 [gd_resource type="Theme" format=3 uid="uid://3pupw0vetlo0"]
 
-[ext_resource type="FontFile" uid="uid://dw6c7v1idqo4c" path="res://fonts/W95FA.otf" id="FF_W95FA"]
+[ext_resource type="FontFile" uid="uid://dw6c7v1idqo4c" path="res://fonts/w95fa.otf" id="FF_W95FA"]
 
 [sub_resource type="StyleBoxFlat" id="SB_Sunken"]
 content_margin_left = 4.0

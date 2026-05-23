@@ -7,7 +7,7 @@ path="res://.godot/imported/W95FA.otf-9d709817e9960b355b7b7ce3a216af0a.fontdata"
 
 [deps]
 
-source_file="res://fonts/W95FA.otf"
+source_file="res://fonts/w95fa.otf"
 dest_files=["res://.godot/imported/W95FA.otf-9d709817e9960b355b7b7ce3a216af0a.fontdata"]
 
 [params]
