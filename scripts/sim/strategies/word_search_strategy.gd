@@ -3,6 +3,7 @@ extends "res://scripts/sim/strategy.gd"
 
 # Word search strategy: tries to form valid dictionary words, respecting 50ms time budget.
 
+const GameCore = preload("res://scripts/sim/game_core.gd")
 const TIME_BUDGET_MS = 50
 
 func pick_moves(core) -> Array:
@@ -178,33 +179,9 @@ func _get_letter_points(letter: String) -> int:
 	return points_map.get(letter.to_upper(), 1)
 
 func _is_valid_word(word: String) -> bool:
-	var word_upper = word.to_upper()
-	if word_upper.length() < 2:
+	if word.length() < 2:
 		return false
-
-	# List of common valid words
-	var valid_words = {
-		"A": true, "I": true, "AN": true, "AT": true, "BE": true, "BY": true,
-		"DO": true, "GO": true, "IF": true, "IN": true, "IS": true, "IT": true,
-		"ME": true, "MY": true, "NO": true, "OF": true, "ON": true, "OR": true,
-		"SO": true, "TO": true, "UP": true, "US": true,
-		"AND": true, "ARE": true, "BAD": true, "BAT": true, "BED": true,
-		"CAN": true, "CAT": true, "DID": true, "DOG": true, "EAR": true,
-		"END": true, "FAR": true, "FEW": true, "FOR": true, "FUN": true,
-		"GET": true, "GOD": true, "GOT": true, "GUN": true, "HAD": true,
-		"HAS": true, "HER": true, "HIM": true, "HIS": true, "HOW": true,
-		"JOB": true, "KEY": true, "LAW": true, "LET": true, "MAD": true,
-		"MAN": true, "MAY": true, "MEN": true, "NOT": true, "NOW": true,
-		"OLD": true, "ONE": true, "OUR": true, "OUT": true, "OWN": true,
-		"RAN": true, "RED": true, "RUN": true, "SAD": true, "SAT": true,
-		"SAW": true, "SAY": true, "SEE": true, "SET": true, "SHE": true,
-		"SIT": true, "SIX": true, "TEN": true, "THE": true, "TOO": true,
-		"TOP": true, "TRY": true, "TWO": true, "USE": true, "WAS": true,
-		"WAY": true, "WHO": true, "WHY": true, "WIN": true, "WON": true,
-		"YES": true, "YET": true, "YOU": true, "BIG": true, "BOY": true,
-		"DAY": true, "EYE": true, "GAY": true, "HAT": true, "HOT": true
-	}
-	return valid_words.has(word_upper)
+	return GameCore.is_valid_word(word)
 
 func _random_fallback(core) -> Array:
 	# Place one random tile
