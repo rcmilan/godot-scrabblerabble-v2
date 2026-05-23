@@ -7,6 +7,8 @@ func _initialize() -> void:
 
 	# Load and run test files.
 	_run_test_file("res://scripts/sim/tests/test_game_core.gd")
+	_run_test_file("res://scripts/sim/tests/test_strategies.gd")
+	_run_test_file("res://scripts/sim/tests/test_simulator.gd")
 
 	# Print summary.
 	print("")
