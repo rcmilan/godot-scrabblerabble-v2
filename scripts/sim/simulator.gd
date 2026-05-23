@@ -5,20 +5,20 @@ const GameCore = preload("res://scripts/sim/game_core.gd")
 
 # Runs N simulated games with different strategies and collects results.
 
-func run_batch(strategies: Array, runs_per_strategy: int, base_seed: int, modifier_build: Dictionary = {}) -> Array:
+func run_batch(strategies: Array, runs_per_strategy: int, base_seed: int, modifier_build: Dictionary = {}, shop_strategy: String = "default") -> Array:
 	var all_results: Array = []
 
 	for strategy_idx in range(strategies.size()):
 		var strategy = strategies[strategy_idx]
 		for run_idx in range(runs_per_strategy):
 			var seed = base_seed + strategy_idx * 10000 + run_idx
-			var result = _run_game(strategy, seed, modifier_build)
+			var result = _run_game(strategy, seed, modifier_build, shop_strategy)
 			all_results.append(result)
 
 	return all_results
 
-func _run_game(strategy, seed: int, modifier_build: Dictionary = {}) -> Dictionary:
-	var core = GameCore.new(seed, modifier_build)
+func _run_game(strategy, seed: int, modifier_build: Dictionary = {}, shop_strategy: String = "default") -> Dictionary:
+	var core = GameCore.new(seed, modifier_build, shop_strategy)
 	var turn_log: Array = []
 	var max_turns = 10000
 

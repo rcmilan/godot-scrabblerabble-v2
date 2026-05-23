@@ -343,3 +343,50 @@ func test_build_over_stack_graceful() -> bool:
 		core.rack.clear()
 		core.refill_rack()
 	return true
+
+# TSM10 - Shop auto-pick adds MOD_2X at intervals (rounds 4, 7, 10, ...).
+func test_shop_auto_pick_at_intervals() -> bool:
+	var core = GameCore.new(999, {}, "default")
+	var target_rounds = [4, 7]
+
+	# Manually step through game, forcing round wins
+	while core.current_round <= 7 and not core.is_game_over:
+		# Force win this round by setting round_score >= target
+		core.round_score = core.target_score
+		# Trigger one turn to advance round
+		var placed: Array = []
+		core.end_turn(placed)
+
+	# Check that MOD_2X count matches expectations
+	var mod_count = core.modifier_build.get(GameCore.MOD_2X, 0)
+	# Should have picked at round 4 and 7, so count should be 2
+	if mod_count != 2:
+		push_error("TSM10: expected 2 MOD_2X picks (at rounds 4 and 7), got %d" % mod_count)
+		return false
+
+	return true
+
+# TSM11 - Shop auto-pick with "never_pick" strategy doesn't add mods.
+func test_shop_never_pick() -> bool:
+	var core = GameCore.new(999, {}, "never_pick")
+
+	while core.current_round <= 7 and not core.is_game_over:
+		while core.turns_left > 0 and not core.is_game_over:
+			var placed: Array = []
+			if core.rack.size() > 0:
+				var tile = core.rack[0]
+				core.rack.remove_at(0)
+				if core.place_pending_tile(tile, Vector2i(0, 0)):
+					placed.append(Vector2i(0, 0))
+				else:
+					core.rack.insert(0, tile)
+			core.end_turn(placed)
+			if core.round_score >= core.target_score:
+				break
+
+	# With never_pick, modifier_build should remain empty
+	if not core.modifier_build.is_empty():
+		push_error("TSM11: expected empty modifier_build with never_pick, got %s" % str(core.modifier_build))
+		return false
+
+	return true
