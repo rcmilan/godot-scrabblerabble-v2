@@ -187,9 +187,13 @@ func _drop_data(_pos: Vector2, _data: Variant) -> void:
 func _flash_feedback() -> void:
 	# Flash the icon briefly (white for 100ms, then back to normal)
 	var original_modulate := modulate
+	var original_mouse_filter := mouse_filter
+	# Disable input during flash to prevent multiple clicks
+	mouse_filter = MOUSE_FILTER_IGNORE
 	modulate = Color.WHITE
 	await get_tree().create_timer(0.1).timeout
 	modulate = original_modulate
+	mouse_filter = original_mouse_filter
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_DRAG_END:
