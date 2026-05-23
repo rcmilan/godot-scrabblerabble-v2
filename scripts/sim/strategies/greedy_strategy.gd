@@ -24,20 +24,29 @@ func pick_moves(core) -> Array:
 		var cell_idx = core.rng.randi() % candidate_cells.size()
 		var pos = candidate_cells[cell_idx]
 
-		# Pick highest-point letter from rack
+		# Pick highest-point letter from rack (using fallback scoring)
 		var best_letter = ""
 		var best_points = -1
 		for letter in core.rack:
-			var points = GameData.score_for_letter(letter)
+			# Use letter ASCII value as fallback (won't use GameData which isn't available in headless mode)
+			var points = _get_letter_points(letter)
 			if points > best_points:
 				best_points = points
 				best_letter = letter
 
 		if not best_letter.is_empty():
 			moves.append({"letter": best_letter, "pos": pos})
-			# Continue to next turn
 
 	return moves
+
+func _get_letter_points(letter: String) -> int:
+	# Fallback scoring based on Scrabble values
+	var points_map = {
+		"Q": 10, "Z": 10, "X": 8, "J": 8, "K": 5, "F": 4, "H": 4, "V": 4, "W": 4, "Y": 4,
+		"B": 3, "C": 3, "M": 3, "P": 3, "D": 2, "G": 2, "L": 1, "N": 1, "R": 1, "S": 1,
+		"T": 1, "U": 1, "E": 1, "A": 1, "I": 1, "O": 1
+	}
+	return points_map.get(letter.to_upper(), 1)
 
 func _find_candidate_cells(core) -> Array:
 	var candidates = []

@@ -84,7 +84,7 @@ func _find_words_in_direction(core, anchor: Vector2i, direction: Vector2i, start
 
 			# Try placing this subset at the anchor
 			var word_text = _try_form_word(core, anchor, direction, subset)
-			if not word_text.is_empty() and GameData.is_valid_word(word_text):
+			if not word_text.is_empty() and _is_valid_word(word_text):
 				# Valid word! Convert to moves
 				var moves = _subset_to_moves(core, anchor, direction, subset, word_text)
 				if moves.size() > 0:
@@ -164,9 +164,47 @@ func _score_moves(core, moves: Array) -> int:
 
 	var score = 0
 	for move in moves:
-		score += GameData.score_for_letter(move.letter)
+		score += _get_letter_points(move.letter)
 
 	return score
+
+func _get_letter_points(letter: String) -> int:
+	# Fallback scoring based on Scrabble values
+	var points_map = {
+		"Q": 10, "Z": 10, "X": 8, "J": 8, "K": 5, "F": 4, "H": 4, "V": 4, "W": 4, "Y": 4,
+		"B": 3, "C": 3, "M": 3, "P": 3, "D": 2, "G": 2, "L": 1, "N": 1, "R": 1, "S": 1,
+		"T": 1, "U": 1, "E": 1, "A": 1, "I": 1, "O": 1
+	}
+	return points_map.get(letter.to_upper(), 1)
+
+func _is_valid_word(word: String) -> bool:
+	var word_upper = word.to_upper()
+	if word_upper.length() < 2:
+		return false
+
+	# List of common valid words
+	var valid_words = {
+		"A": true, "I": true, "AN": true, "AT": true, "BE": true, "BY": true,
+		"DO": true, "GO": true, "IF": true, "IN": true, "IS": true, "IT": true,
+		"ME": true, "MY": true, "NO": true, "OF": true, "ON": true, "OR": true,
+		"SO": true, "TO": true, "UP": true, "US": true,
+		"AND": true, "ARE": true, "BAD": true, "BAT": true, "BED": true,
+		"CAN": true, "CAT": true, "DID": true, "DOG": true, "EAR": true,
+		"END": true, "FAR": true, "FEW": true, "FOR": true, "FUN": true,
+		"GET": true, "GOD": true, "GOT": true, "GUN": true, "HAD": true,
+		"HAS": true, "HER": true, "HIM": true, "HIS": true, "HOW": true,
+		"JOB": true, "KEY": true, "LAW": true, "LET": true, "MAD": true,
+		"MAN": true, "MAY": true, "MEN": true, "NOT": true, "NOW": true,
+		"OLD": true, "ONE": true, "OUR": true, "OUT": true, "OWN": true,
+		"RAN": true, "RED": true, "RUN": true, "SAD": true, "SAT": true,
+		"SAW": true, "SAY": true, "SEE": true, "SET": true, "SHE": true,
+		"SIT": true, "SIX": true, "TEN": true, "THE": true, "TOO": true,
+		"TOP": true, "TRY": true, "TWO": true, "USE": true, "WAS": true,
+		"WAY": true, "WHO": true, "WHY": true, "WIN": true, "WON": true,
+		"YES": true, "YET": true, "YOU": true, "BIG": true, "BOY": true,
+		"DAY": true, "EYE": true, "GAY": true, "HAT": true, "HOT": true
+	}
+	return valid_words.has(word_upper)
 
 func _random_fallback(core) -> Array:
 	# Place one random tile
