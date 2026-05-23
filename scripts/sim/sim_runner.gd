@@ -8,6 +8,7 @@ const ResultsWriter = preload("res://scripts/sim/results_writer.gd")
 const RandomStrategy = preload("res://scripts/sim/strategies/random_strategy.gd")
 const GreedyStrategy = preload("res://scripts/sim/strategies/greedy_strategy.gd")
 const WordSearchStrategy = preload("res://scripts/sim/strategies/word_search_strategy.gd")
+const DiagonalClusterStrategy = preload("res://scripts/sim/strategies/diagonal_cluster_strategy.gd")
 
 func _initialize() -> void:
 	var args = _parse_args()
@@ -82,6 +83,8 @@ func _build_strategies(strategies_str: String) -> Array:
 			strategies.append(GreedyStrategy.new())
 		elif name == "word_search":
 			strategies.append(WordSearchStrategy.new())
+		elif name == "diagonal_cluster":
+			strategies.append(DiagonalClusterStrategy.new())
 		else:
 			print("WARNING: Unknown strategy '%s'" % name)
 
