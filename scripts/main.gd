@@ -1,10 +1,11 @@
 # res://scripts/main.gd
 extends Control
 
-const TILES_PER_TURN:       int = 4
 const WORD_BONUS_MULTIPLIER: int = 2
 
-const GLITTER_SCENE := preload("res://scenes/GlitterEmitter.tscn")
+const GLITTER_SCENE          := preload("res://scenes/glitter_emitter.tscn")
+const GAME_OVER_SCENE        := preload("res://scenes/game_over_dialog.tscn")
+const ROUND_TRANSITION_SCENE := preload("res://scenes/round_transition.tscn")
 
 @onready var board:            Board  = %Board
 @onready var rack:             Rack   = %Rack
@@ -12,7 +13,6 @@ const GLITTER_SCENE := preload("res://scenes/GlitterEmitter.tscn")
 @onready var tiles_left_label: Label  = %TilesLeftLabel
 @onready var end_turn_button:  Button = %EndTurnButton
 
-var total_score:   int = 0
 var pending_cells: Array[BoardCell] = []
 var cursor:        Vector2i = Vector2i(0, 0)
 
@@ -23,6 +23,9 @@ func _ready() -> void:
 	cursor = Vector2i(3, 3)
 	board.focus_cell(cursor)
 	board.cell_focused.connect(_on_cell_focused)
+	RunState.reset()
+	RunState.round_won.connect(_on_round_won)
+	RunState.game_over.connect(_on_game_over)
 	_update_hud()
 
 func _on_cell_focused(cell: BoardCell) -> void:
@@ -30,6 +33,9 @@ func _on_cell_focused(cell: BoardCell) -> void:
 
 # ---------- Input ----------
 func _unhandled_input(event: InputEvent) -> void:
+	# While the game over dialog is up, all input belongs to it.
+	if RunState.is_game_over or RunState.is_transitioning:
+		return
 	if event.is_action_pressed("ui_left"):
 		_move_cursor(Vector2i(-1, 0))
 		get_viewport().set_input_as_handled()
@@ -67,7 +73,7 @@ func _try_place_letter_on_cursor(letter: String) -> void:
 
 # ---------- Drag and drop ----------
 func on_tile_dropped_on_cell(tile: Tile, cell: BoardCell) -> void:
-	if not cell.is_empty():
+	if RunState.is_transitioning or not cell.is_empty():
 		return
 	_place_tile_on_cell(tile, cell)
 
@@ -93,8 +99,11 @@ func _place_tile_on_cell(tile: Tile, cell: BoardCell) -> void:
 	add_child(tile)
 	tile.visible = false
 	pending_cells.append(cell)
+	# Re-anchor keyboard focus: removing a tile from the rack HBox can
+	# steal focus away from the board cell, breaking arrow-key navigation.
+	board.focus_cell(cursor)
 	_update_hud()
-	if pending_cells.size() >= TILES_PER_TURN:
+	if pending_cells.size() >= RunState.tiles_per_turn:
 		_on_end_turn_pressed()
 
 # ---------- End of turn ----------
@@ -102,14 +111,17 @@ func _on_end_turn_pressed() -> void:
 	if pending_cells.is_empty():
 		return
 	var turn_score := _calculate_turn_score()
+	print("[Turn] placed=%d  scored=%d" % [pending_cells.size(), turn_score])
 	if turn_score > 0:
 		for c: BoardCell in pending_cells:
 			_spawn_glitter_at(c)
-	total_score += turn_score
 	for c in pending_cells:
 		c.lock_pending()
 	pending_cells.clear()
-	rack.refill()
+	RunState.register_turn_score(turn_score)
+	if not RunState.is_game_over:
+		rack.refill()
+		board.focus_cell(cursor)
 	_update_hud()
 
 func _spawn_glitter_at(cell: BoardCell) -> void:
@@ -163,5 +175,38 @@ func _extract_word_in_direction(cell: BoardCell, dir: Vector2i) -> Dictionary:
 	return {"text": text, "start": start_pos}
 
 func _update_hud() -> void:
-	score_label.text = "Score: %d" % total_score
-	tiles_left_label.text = "Placed: %d / %d" % [pending_cells.size(), TILES_PER_TURN]
+	score_label.text      = "Score: %d  |  Round %d  |  Target: %d" % [
+		RunState.round_score, RunState.current_round, RunState.target_score]
+	tiles_left_label.text = "Turns left: %d  |  Tiles/turn: %d" % [
+		RunState.turns_left, RunState.tiles_per_turn]
+
+func _on_round_won(round_num: int, _round_score: int, _target: int) -> void:
+	pending_cells.clear()
+	board.clear_all()
+	var emitter: GPUParticles2D = GLITTER_SCENE.instantiate()
+	add_child(emitter)
+	emitter.global_position = board.global_position + board.size * 0.5
+	_update_hud()
+	RunState.is_transitioning = true
+	var transition: CanvasLayer = ROUND_TRANSITION_SCENE.instantiate()
+	add_child(transition)
+	transition.finished.connect(_on_transition_finished)
+	transition.play(round_num)
+
+func _on_transition_finished() -> void:
+	RunState.is_transitioning = false
+	board.focus_cell(cursor)
+
+func _on_game_over(final_round: int, final_round_score: int, final_target: int) -> void:
+	_update_hud()
+	var dialog: Panel = GAME_OVER_SCENE.instantiate()
+	dialog.setup(final_round, final_round_score, final_target)
+	var layer := CanvasLayer.new()
+	# Below the CRT overlay (layer 100) so scanlines/vignette draw over the dialog.
+	layer.layer = 50
+	add_child(layer)
+	layer.add_child(dialog)
+	# Center the dialog. custom_minimum_size is reliable at this point;
+	# size is still (0,0) before the first layout pass.
+	var vp_size := get_viewport().get_visible_rect().size
+	dialog.position = (vp_size - dialog.custom_minimum_size) / 2.0

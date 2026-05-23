@@ -3,8 +3,8 @@
 [ext_resource type="Script" uid="uid://cful6fkudmm10" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="Script" uid="uid://csocuex4ng7m0" path="res://scripts/board.gd" id="2_board"]
 [ext_resource type="Script" uid="uid://cuetud868qr0e" path="res://scripts/rack.gd" id="3_rack"]
-[ext_resource type="Theme" uid="uid://3pupw0vetlo0" path="res://theme/win95.tres" id="4_theme"]
-[ext_resource type="PackedScene" path="res://scenes/CRTOverlay.tscn" id="5_crt"]
+[ext_resource type="Theme" uid="uid://3pupw0vetlo0" path="res://themes/win95.tres" id="4_theme"]
+[ext_resource type="PackedScene" path="res://scenes/crt_overlay.tscn" id="5_crt"]
 [ext_resource type="Shader" path="res://shaders/holographic.gdshader" id="6_holo"]
 
 [sub_resource type="FastNoiseLite" id="FNL_Score"]
@@ -140,6 +140,7 @@ script = ExtResource("2_board")
 
 [node name="Rack" type="HBoxContainer" parent="WinFrame/InnerVBox/GameArea"]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 56)
 layout_mode = 2
 size_flags_horizontal = 4
 alignment = 1

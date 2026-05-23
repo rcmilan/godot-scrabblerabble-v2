@@ -34,3 +34,8 @@ func focus_cell(pos: Vector2i) -> void:
 	var c := get_cell(pos)
 	if c:
 		c.grab_focus()
+
+func clear_all() -> void:
+	for x in BOARD_SIZE:
+		for y in BOARD_SIZE:
+			(cells[x][y] as BoardCell).clear_all()

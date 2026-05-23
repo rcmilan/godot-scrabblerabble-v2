@@ -130,6 +130,16 @@ func lock_pending() -> void:
 		current_tile = null
 	queue_redraw()
 
+func clear_all() -> void:
+	if current_tile != null:
+		if current_tile.get_parent():
+			current_tile.get_parent().remove_child(current_tile)
+		current_tile.queue_free()
+		current_tile = null
+	locked_letter = ""
+	label.text    = ""
+	queue_redraw()
+
 # --- Drag and drop target ---
 func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
 	return data is Tile and is_empty()
