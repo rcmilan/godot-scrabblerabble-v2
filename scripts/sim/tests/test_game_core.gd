@@ -59,3 +59,44 @@ func test_rack_draw_distribution() -> bool:
 			return false
 
 	return true
+
+# TC4 - Scoring parity: word extraction and point calculation.
+func test_scoring_word_extraction() -> bool:
+	var core = GameCore.new(123)
+	core.board[0][0] = "C"
+	core.board[1][0] = "A"
+	core.board[2][0] = "T"
+	var score = core._calculate_turn_score([Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0)])
+	# C=3, A=1, T=1; total=5
+	# Dictionary validation happens in _calculate_turn_score but depends on GameData
+	# For now, just verify extraction and base scoring works
+	if score < 5:
+		push_error("Expected minimum score 5 for 'CAT', got %d" % score)
+		return false
+	return true
+
+# TC5 - Cross-word extraction: single-letter words are skipped.
+func test_cross_word_skip_length_one() -> bool:
+	var core = GameCore.new(456)
+	# Set up "CAT" horizontally
+	core.board[0][0] = "C"
+	core.board[1][0] = "A"
+	core.board[2][0] = "T"
+	# Place "S" at (3,0) to complete "CATS" horizontally
+	# But (3,1) is empty, so vertical word from (3,0) is only "S" (length 1)
+	core.board[3][0] = "S"
+
+	var horiz = core._extract_word_in_direction(Vector2i(3, 0), Vector2i(1, 0))
+	var vert = core._extract_word_in_direction(Vector2i(3, 0), Vector2i(0, 1))
+
+	# Horizontal should be "CATS"
+	if horiz.text != "CATS":
+		push_error("Expected 'CATS' horizontal, got '%s'" % horiz.text)
+		return false
+
+	# Vertical from (3,0) going down should be "S" (length 1, should be skipped in scoring)
+	if vert.text != "S":
+		push_error("Expected 'S' vertical, got '%s'" % vert.text)
+		return false
+
+	return true
