@@ -6,6 +6,8 @@ extends SceneTree
 const Simulator = preload("res://scripts/sim/simulator.gd")
 const ResultsWriter = preload("res://scripts/sim/results_writer.gd")
 const RandomStrategy = preload("res://scripts/sim/strategies/random_strategy.gd")
+const GreedyStrategy = preload("res://scripts/sim/strategies/greedy_strategy.gd")
+const WordSearchStrategy = preload("res://scripts/sim/strategies/word_search_strategy.gd")
 
 func _initialize() -> void:
 	var args = _parse_args()
@@ -69,6 +71,10 @@ func _build_strategies(strategies_str: String) -> Array:
 		name = name.strip_edges().to_lower()
 		if name == "random":
 			strategies.append(RandomStrategy.new())
+		elif name == "greedy":
+			strategies.append(GreedyStrategy.new())
+		elif name == "word_search":
+			strategies.append(WordSearchStrategy.new())
 		else:
 			print("WARNING: Unknown strategy '%s'" % name)
 
