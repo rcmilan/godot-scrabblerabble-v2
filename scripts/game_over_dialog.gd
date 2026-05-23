@@ -8,11 +8,13 @@ func setup(rounds_survived: int, final_score: int) -> void:
 	_score  = final_score
 
 func _ready() -> void:
-	$VBox/RoundLabel.text = "You survived %d rounds." % _rounds
-	$VBox/ScoreLabel.text = "Final score: %d"         % _score
-	$VBox/ButtonRow/RestartButton.pressed.connect(_on_restart)
-	$VBox/ButtonRow/QuitButton.pressed.connect(_on_quit)
-	$VBox/ButtonRow/RestartButton.grab_focus()
+	$InnerVBox/BodyArea/RoundLabel.text = "You survived %d rounds." % _rounds
+	$InnerVBox/BodyArea/ScoreLabel.text = "Final score: %d"         % _score
+	$InnerVBox/BodyArea/ButtonRow/RestartButton.pressed.connect(_on_restart)
+	$InnerVBox/BodyArea/ButtonRow/QuitButton.pressed.connect(_on_quit)
+	# The X in the title bar matches Win95: closes the window → quits the game.
+	$InnerVBox/TitleBar/TitleContent/WinButtons/CloseBtn.pressed.connect(_on_quit)
+	$InnerVBox/BodyArea/ButtonRow/RestartButton.grab_focus()
 
 func _on_restart() -> void:
 	print("[GameOverDialog] restart")
