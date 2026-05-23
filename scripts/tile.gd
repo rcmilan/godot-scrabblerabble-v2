@@ -11,9 +11,6 @@ extends Panel
 var location:  String   = "rack"
 var board_pos: Vector2i = Vector2i(-1, -1)
 
-var _orig_letter_color: Color
-var _orig_point_color:  Color
-
 const C_OUTER_LIGHT := Color("#FFFFFF")
 const C_INNER_LIGHT := Color("#DFDFDF")
 const C_INNER_DARK  := Color("#808080")
@@ -22,15 +19,10 @@ const C_OUTER_DARK  := Color("#0A0A0A")
 const C_MOD_GRADIENT_LEFT  := Color(0.0,        0.0,         0.5019, 1.0)
 const C_MOD_GRADIENT_RIGHT := Color(16.0/255.0, 132.0/255.0, 208.0/255.0, 1.0)
 const C_LABEL_MOD          := Color(1.0, 1.0, 1.0, 1.0)
+const C_LABEL_LETTER       := Color(0.0, 0.0, 0.502, 1.0)
+const C_LABEL_POINT        := Color(0.251, 0.251, 0.251, 1.0)
 
 func _ready() -> void:
-	# Cache original label colors before any modifier override is applied.
-	_orig_letter_color = letter_label.get_theme_color_override("font_color") \
-		if letter_label.has_theme_color_override("font_color") \
-		else Color(0.0, 0.0, 0.502, 1.0)
-	_orig_point_color = point_label.get_theme_color_override("font_color") \
-		if point_label.has_theme_color_override("font_color") \
-		else Color(0.0, 0.0, 0.502, 1.0)
 	_refresh_visual()
 	mouse_filter = Control.MOUSE_FILTER_STOP
 
@@ -52,8 +44,8 @@ func _refresh_visual() -> void:
 		letter_label.add_theme_color_override("font_color", C_LABEL_MOD)
 		point_label.add_theme_color_override("font_color", C_LABEL_MOD)
 	else:
-		letter_label.add_theme_color_override("font_color", _orig_letter_color)
-		point_label.add_theme_color_override("font_color", _orig_point_color)
+		letter_label.add_theme_color_override("font_color", C_LABEL_LETTER)
+		point_label.add_theme_color_override("font_color", C_LABEL_POINT)
 
 func _draw() -> void:
 	var w := int(size.x)
