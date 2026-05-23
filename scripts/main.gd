@@ -7,6 +7,15 @@ const GLITTER_SCENE          := preload("res://scenes/glitter_emitter.tscn")
 const GAME_OVER_SCENE        := preload("res://scenes/game_over_dialog.tscn")
 const ROUND_TRANSITION_SCENE := preload("res://scenes/round_transition.tscn")
 
+const WORD_SEARCH_STRATEGY      := preload("res://scripts/sim/strategies/word_search_strategy.gd")
+const GREEDY_STRATEGY           := preload("res://scripts/sim/strategies/greedy_strategy.gd")
+const RANDOM_STRATEGY           := preload("res://scripts/sim/strategies/random_strategy.gd")
+const DIAGONAL_CLUSTER_STRATEGY := preload("res://scripts/sim/strategies/diagonal_cluster_strategy.gd")
+
+const AUTOPLAY_STEP_MS: int = 200
+
+var _autoplay_active: bool = false
+
 @onready var board:            Board  = %Board
 @onready var rack:             Rack   = %Rack
 @onready var score_label:      Label  = %ScoreLabel
@@ -27,6 +36,7 @@ func _ready() -> void:
 	RunState.round_won.connect(_on_round_won)
 	RunState.game_over.connect(_on_game_over)
 	_update_hud()
+	_maybe_start_autoplay()
 
 func _on_cell_focused(cell: BoardCell) -> void:
 	cursor = cell.grid_pos
@@ -198,6 +208,7 @@ func _on_transition_finished() -> void:
 	board.focus_cell(cursor)
 
 func _on_game_over(final_round: int, final_round_score: int, final_target: int) -> void:
+	_autoplay_active = false
 	_update_hud()
 	var dialog: Panel = GAME_OVER_SCENE.instantiate()
 	dialog.setup(final_round, final_round_score, final_target)
@@ -210,3 +221,107 @@ func _on_game_over(final_round: int, final_round_score: int, final_target: int) 
 	# size is still (0,0) before the first layout pass.
 	var vp_size := get_viewport().get_visible_rect().size
 	dialog.position = (vp_size - dialog.custom_minimum_size) / 2.0
+
+# ---------- Autoplay ----------
+func _maybe_start_autoplay() -> void:
+	var strategy_name := _autoplay_strategy_arg()
+	if strategy_name == "":
+		return
+	var strategy = _build_strategy(strategy_name)
+	if strategy == null:
+		print("[Autoplay] unknown strategy: %s" % strategy_name)
+		return
+	_autoplay_active = true
+	print("[Autoplay] starting with strategy=%s, step=%dms" % [strategy_name, AUTOPLAY_STEP_MS])
+	_run_autoplay(strategy)
+
+func _autoplay_strategy_arg() -> String:
+	for raw in OS.get_cmdline_user_args():
+		if raw.begins_with("--autoplay="):
+			return raw.trim_prefix("--autoplay=")
+		if raw == "--autoplay":
+			return "word_search"
+	return ""
+
+func _build_strategy(name: String):
+	match name:
+		"word_search":      return WORD_SEARCH_STRATEGY.new()
+		"greedy":           return GREEDY_STRATEGY.new()
+		"random":           return RANDOM_STRATEGY.new()
+		"diagonal_cluster": return DIAGONAL_CLUSTER_STRATEGY.new()
+		_:                  return null
+
+func _run_autoplay(strategy) -> void:
+	# Tiny adapter exposing the GameCore shape that strategies expect,
+	# but reading live state from Board/Rack/RunState.
+	var adapter := _AutoplayAdapter.new(board, rack)
+	while _autoplay_active and not RunState.is_game_over:
+		if RunState.is_transitioning:
+			await get_tree().create_timer(0.2).timeout
+			continue
+		adapter.refresh(RunState.tiles_per_turn)
+		var moves: Array = strategy.pick_moves(adapter)
+		if moves.is_empty():
+			print("[Autoplay] strategy returned no moves — ending turn")
+			# Force a turn end if anything is pending, otherwise bail.
+			if pending_cells.size() > 0:
+				_on_end_turn_pressed()
+			else:
+				_autoplay_active = false
+				break
+			await get_tree().create_timer(AUTOPLAY_STEP_MS / 1000.0).timeout
+			continue
+		var placed_any := false
+		for move in moves:
+			if not _autoplay_active or RunState.is_game_over or RunState.is_transitioning:
+				break
+			var cell := board.get_cell(move.pos)
+			if cell == null or not cell.is_empty():
+				continue
+			var tile := rack.find_tile_with_letter(move.letter)
+			if tile == null:
+				continue
+			_place_tile_on_cell(tile, cell)
+			placed_any = true
+			await get_tree().create_timer(AUTOPLAY_STEP_MS / 1000.0).timeout
+		# If we placed fewer than tiles_per_turn (e.g. strategy short word),
+		# force the turn to end so the loop advances.
+		if placed_any and pending_cells.size() > 0:
+			_on_end_turn_pressed()
+			await get_tree().create_timer(AUTOPLAY_STEP_MS / 1000.0).timeout
+		elif not placed_any:
+			print("[Autoplay] no valid placement this turn — stopping")
+			_autoplay_active = false
+			break
+
+class _AutoplayAdapter:
+	extends RefCounted
+	const BOARD_SIZE: int = 8
+	var board: Array = []
+	var rack: Array = []
+	var tiles_per_turn: int = 0
+	var rng: RandomNumberGenerator
+	var _board_node
+	var _rack_node
+	func _init(b, r) -> void:
+		_board_node = b
+		_rack_node = r
+		rng = RandomNumberGenerator.new()
+		rng.randomize()
+	func refresh(current_tiles_per_turn: int) -> void:
+		tiles_per_turn = current_tiles_per_turn
+		board.clear()
+		board.resize(BOARD_SIZE)
+		for x in BOARD_SIZE:
+			board[x] = []
+			board[x].resize(BOARD_SIZE)
+			for y in BOARD_SIZE:
+				var cell = _board_node.get_cell(Vector2i(x, y))
+				board[x][y] = cell.get_letter() if cell else ""
+		rack.clear()
+		for tile in _rack_node.tiles_in_hand:
+			rack.append(tile.letter)
+	func is_cell_empty(pos: Vector2i) -> bool:
+		if pos.x < 0 or pos.x >= BOARD_SIZE or pos.y < 0 or pos.y >= BOARD_SIZE:
+			return false
+		return board[pos.x][pos.y] == ""
