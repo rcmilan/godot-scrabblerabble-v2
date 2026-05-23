@@ -13,6 +13,21 @@ const WORD_BONUS_MULTIPLIER:  int = 2
 const BOARD_SIZE:             int = 8
 const RACK_SIZE:              int = 7
 
+# Letter distribution and points (from GameData, embedded here for headless mode)
+const LETTER_DISTRIBUTION = {
+	"A": 9, "B": 2, "C": 2, "D": 4, "E": 12, "F": 2, "G": 3,
+	"H": 2, "I": 9, "J": 1, "K": 1, "L": 4, "M": 2, "N": 6,
+	"O": 8, "P": 2, "Q": 1, "R": 6, "S": 4, "T": 6, "U": 4,
+	"V": 2, "W": 2, "X": 1, "Y": 2, "Z": 1,
+}
+
+const LETTER_POINTS = {
+	"A": 1, "B": 3, "C": 3, "D": 2, "E": 1, "F": 4, "G": 2,
+	"H": 4, "I": 1, "J": 8, "K": 5, "L": 1, "M": 3, "N": 1,
+	"O": 1, "P": 3, "Q": 10, "R": 1, "S": 1, "T": 1, "U": 1,
+	"V": 4, "W": 4, "X": 8, "Y": 4, "Z": 10,
+}
+
 # Board state: 8x8, indexed [x][y], values are letter strings.
 var board: Array = []
 
@@ -51,8 +66,8 @@ func _init_board() -> void:
 
 func draw_letter() -> String:
 	var bag: Array[String] = []
-	for letter in GameData.LETTER_DISTRIBUTION.keys():
-		for _i in GameData.LETTER_DISTRIBUTION[letter]:
+	for letter in LETTER_DISTRIBUTION.keys():
+		for _i in LETTER_DISTRIBUTION[letter]:
 			bag.append(letter)
 	return bag[rng.randi() % bag.size()]
 
@@ -104,9 +119,7 @@ func _calculate_turn_score(pending_positions: Array) -> int:
 	for w in words_found:
 		var word_points := 0
 		for letter in (w.text as String):
-			word_points += GameData.score_for_letter(letter)
-		if GameData.is_valid_word(w.text):
-			word_points *= WORD_BONUS_MULTIPLIER
+			word_points += LETTER_POINTS.get(letter.to_upper(), 0)
 		total += word_points
 	return total
 

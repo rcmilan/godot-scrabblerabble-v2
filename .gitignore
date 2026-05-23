@@ -5,5 +5,4 @@
 .vs
 
 # Simulation results
-sim_results/
-@sim_results\
+sim_results
