@@ -1,0 +1,31 @@
+[gd_scene load_steps=3 format=3 uid="uid://desktop001"]
+
+[ext_resource type="Script" path="res://scripts/desktop.gd" id="1"]
+[ext_resource type="PackedScene" path="res://scenes/desktop_icon.tscn" id="2"]
+
+[node name="Desktop" type="CanvasLayer"]
+layer = 40
+script = ExtResource("1")
+
+[node name="Background" type="ColorRect" parent="."]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0.502, 0.502, 1)
+
+[node name="Mod2xIcon" parent="." instance=ExtResource("2")]
+position = Vector2(100, 100)
+icon_id = &"mod_2x"
+requires_double_click = true
+
+[node name="UserIcon" parent="." instance=ExtResource("2")]
+position = Vector2(300, 300)
+icon_id = &"user"
+requires_double_click = false
+
+[node name="ScrabblerabbleIcon" parent="." instance=ExtResource("2")]
+position = Vector2(500, 100)
+icon_id = &"scrabblerabble"
+requires_double_click = false

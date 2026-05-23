@@ -9,6 +9,7 @@ signal game_over(final_round: int, final_round_score: int, final_target: int)
 const TURNS_PER_ROUND:        int = 3
 const INITIAL_TILES_PER_TURN: int = 4
 const INITIAL_TARGET_SCORE:   int = 20
+const SHOP_EVERY_N_ROUNDS:    int = 3
 
 var current_round:  int   = 1
 var round_score:    int   = 0
@@ -18,6 +19,7 @@ var tiles_per_turn: int   = INITIAL_TILES_PER_TURN
 var is_game_over:   bool  = false
 var is_transitioning: bool = false
 var history:        Array = []
+var modifier_build: Dictionary = {}   # { "2x": int, ... }  keyed by mod constant
 
 var _t_prev: float = 0.0
 var _t_curr: float = float(INITIAL_TARGET_SCORE)
@@ -30,11 +32,19 @@ func reset() -> void:
 	is_game_over   = false
 	is_transitioning = false
 	history.clear()
+	modifier_build.clear()
 	_t_prev      = 0.0
 	_t_curr      = float(INITIAL_TARGET_SCORE)
 	target_score = INITIAL_TARGET_SCORE
 	print("[RunState] reset — round 1, target %d, %d tiles/turn" % [target_score, tiles_per_turn])
 	round_started.emit(current_round, target_score, turns_left)
+
+func is_shop_due() -> bool:
+	return current_round > 1 and (current_round - 1) % SHOP_EVERY_N_ROUNDS == 0
+
+func add_to_build(mod: String) -> void:
+	modifier_build[mod] = modifier_build.get(mod, 0) + 1
+	print("[Shop] build += %s (total %d)" % [mod, modifier_build[mod]])
 
 func register_turn_score(points: int) -> void:
 	round_score += points

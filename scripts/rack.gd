@@ -18,7 +18,8 @@ func refill() -> void:
 		tile.letter = letter
 		add_child(tile)
 		tiles_in_hand.append(tile)
-	_ensure_modifier_in_rack(GameData.MOD_2X)
+	for mod in RunState.modifier_build.keys():
+		_ensure_modifier_count_in_rack(mod, RunState.modifier_build[mod])
 
 func _draw_random_letter() -> String:
 	# Build a weighted bag from the standard distribution.
@@ -28,22 +29,29 @@ func _draw_random_letter() -> String:
 			bag.append(letter)
 	return bag[randi() % bag.size()]
 
-func _ensure_modifier_in_rack(mod: String) -> void:
+func _ensure_modifier_count_in_rack(mod: String, required_count: int) -> void:
+	# 1. Count tiles already carrying this modifier.
+	var have := 0
 	for t in tiles_in_hand:
 		if t.modifier == mod:
-			return
-	var target_idx := -1
-	var target_pts := 9999
-	for i in tiles_in_hand.size():
-		var t: Tile = tiles_in_hand[i]
-		if t.modifier != GameData.MOD_NONE:
-			continue
-		var pts: int = GameData.LETTER_POINTS.get(t.letter, 0)
-		if pts < target_pts:
-			target_pts = pts
-			target_idx = i
-	if target_idx >= 0:
+			have += 1
+	# 2. Promote unmodified tiles until we hit required_count.
+	#    Binary rule: a tile with ANY modifier is ineligible — never stack.
+	while have < required_count:
+		var target_idx := -1
+		var target_pts := 9999
+		for i in tiles_in_hand.size():
+			var t: Tile = tiles_in_hand[i]
+			if t.modifier != GameData.MOD_NONE:
+				continue
+			var pts: int = GameData.LETTER_POINTS.get(t.letter, 0)
+			if pts < target_pts:
+				target_pts = pts
+				target_idx = i
+		if target_idx < 0:
+			return  # no unmodified tiles left; top out silently
 		tiles_in_hand[target_idx].set_modifier(mod)
+		have += 1
 
 func remove_tile(tile: Tile) -> void:
 	tiles_in_hand.erase(tile)

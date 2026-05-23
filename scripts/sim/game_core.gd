@@ -76,11 +76,15 @@ var turns_left:     int   = TURNS_PER_ROUND
 var tiles_per_turn: int   = INITIAL_TILES_PER_TURN
 var is_game_over:   bool  = false
 
+# Modifier build state.
+var modifier_build: Dictionary = {}
+
 # Target curve state.
 var _t_prev: float = 0.0
 var _t_curr: float = float(INITIAL_TARGET_SCORE)
 
-func _init(seed: int) -> void:
+func _init(seed: int, build: Dictionary = {}) -> void:
+	modifier_build = build.duplicate()
 	rng = RandomNumberGenerator.new()
 	rng.seed = seed
 	_init_board()
@@ -123,26 +127,32 @@ func rack_letters() -> Array:
 func refill_rack() -> void:
 	while rack.size() < RACK_SIZE:
 		rack.append(draw_tile())
-	_ensure_modifier_in_rack(MOD_2X)
+	for mod in modifier_build.keys():
+		_ensure_modifier_count_in_rack(mod, modifier_build[mod])
 
-func _ensure_modifier_in_rack(mod: String) -> void:
+func _ensure_modifier_count_in_rack(mod: String, required_count: int) -> void:
+	# 1. Count tiles already carrying this modifier.
+	var have := 0
 	for t in rack:
 		if t.modifier == mod:
-			return
-	# No tile with this modifier. Promote the lowest-value unmodified tile.
-	# Deterministic (lowest-value-wins, first on tie) to keep sim reproducible.
-	var target_idx := -1
-	var target_pts := 9999
-	for i in rack.size():
-		var t = rack[i]
-		if t.modifier != MOD_NONE:
-			continue
-		var pts: int = LETTER_POINTS.get(t.letter, 0)
-		if pts < target_pts:
-			target_pts = pts
-			target_idx = i
-	if target_idx >= 0:
+			have += 1
+	# 2. Promote unmodified tiles until we hit required_count.
+	#    Binary rule: a tile with ANY modifier is ineligible — never stack.
+	while have < required_count:
+		var target_idx := -1
+		var target_pts := 9999
+		for i in rack.size():
+			var t = rack[i]
+			if t.modifier != MOD_NONE:
+				continue
+			var pts: int = LETTER_POINTS.get(t.letter, 0)
+			if pts < target_pts:
+				target_pts = pts
+				target_idx = i
+		if target_idx < 0:
+			return  # no unmodified tiles left; top out silently
 		rack[target_idx].modifier = mod
+		have += 1
 
 func is_cell_empty(pos: Vector2i) -> bool:
 	if pos.x < 0 or pos.x >= BOARD_SIZE or pos.y < 0 or pos.y >= BOARD_SIZE:

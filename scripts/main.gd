@@ -6,6 +6,7 @@ const WORD_BONUS_MULTIPLIER: int = 2
 const GLITTER_SCENE          := preload("res://scenes/glitter_emitter.tscn")
 const GAME_OVER_SCENE        := preload("res://scenes/game_over_dialog.tscn")
 const ROUND_TRANSITION_SCENE := preload("res://scenes/round_transition.tscn")
+const DESKTOP_SCENE          := preload("res://scenes/desktop.tscn")
 
 const WORD_SEARCH_STRATEGY      := preload("res://scripts/sim/strategies/word_search_strategy.gd")
 const GREEDY_STRATEGY           := preload("res://scripts/sim/strategies/greedy_strategy.gd")
@@ -214,8 +215,33 @@ func _on_round_won(round_num: int, _round_score: int, _target: int) -> void:
 	transition.play(round_num)
 
 func _on_transition_finished() -> void:
+	if RunState.is_shop_due():
+		_open_shop()
+		# is_transitioning stays true until the shop closes.
+		return
 	RunState.is_transitioning = false
 	board.focus_cell(cursor)
+
+func _open_shop() -> void:
+	# Autoplay safety: strategies don't make shop choices, so the desktop
+	# would deadlock _run_autoplay's is_transitioning poll. Skip it.
+	if _autoplay_active:
+		print("[Shop] autoplay active — skipping shop, no picks added")
+		RunState.is_transitioning = false
+		board.focus_cell(cursor)
+		return
+	var desktop := DESKTOP_SCENE.instantiate()
+	add_child(desktop)
+	desktop.resume_requested.connect(_on_shop_closed.bind(desktop))
+
+func _on_shop_closed(desktop: Node) -> void:
+	desktop.queue_free()
+	# The player may have added modifiers to the build; force a refill
+	# so the new guarantees show up immediately, not on the next end-of-turn.
+	rack.refill()
+	RunState.is_transitioning = false
+	board.focus_cell(cursor)
+	_update_hud()
 
 func _on_game_over(final_round: int, final_round_score: int, final_target: int) -> void:
 	_autoplay_active = false

@@ -1,0 +1,7 @@
+[gd_scene load_steps=2 format=3 uid="uid://deskicon01"]
+
+[ext_resource type="Script" path="res://scripts/desktop_icon.gd" id="1"]
+
+[node name="DesktopIcon" type="Control"]
+custom_minimum_size = Vector2(80, 100)
+script = ExtResource("1")
