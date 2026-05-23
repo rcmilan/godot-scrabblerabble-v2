@@ -156,24 +156,81 @@ func _calculate_turn_score() -> int:
 
 	var total := 0
 	for w in words_found:
-		var word_points := 0
-		var mods_parts: Array = []
-		for i in (w.text as String).length():
-			var ch: String = (w.text as String)[i]
-			var cell: BoardCell = w.cells[i]
-			var letter_pts: int = GameData.score_for_letter(ch)
-			if cell.get_modifier() == GameData.MOD_2X:
-				letter_pts *= 2
-				mods_parts.append("2x@%d" % i)
-			word_points += letter_pts
 		if GameData.is_valid_word(w.text):
-			word_points *= WORD_BONUS_MULTIPLIER
-			var mods_str := ", ".join(mods_parts) if mods_parts.size() > 0 else "none"
+			# Full word is valid - score it with word bonus
+			var word_points := _score_word(w)
+			var mods_str := _get_modifiers_str(w)
 			print("VALID:   %s = %d points (modifiers: %s)" % [w.text, word_points, mods_str])
+			total += word_points
 		else:
-			print("invalid: %s = %d points (no bonus)" % [w.text, word_points])
-		total += word_points
+			# Full word is invalid - try to find valid sub-words
+			var sub_words_found := false
+			# Try all possible sub-words (length 2+)
+			for start_idx in range(w.text.length() - 1):
+				for end_idx in range(start_idx + 2, w.text.length() + 1):
+					var sub_word: String = w.text.substr(start_idx, end_idx - start_idx)
+					if GameData.is_valid_word(sub_word):
+						sub_words_found = true
+						# Calculate score for sub-word
+						var sub_points := 0
+						var sub_mods: Array = []
+						for i in range(start_idx, end_idx):
+							var ch: String = w.text[i]
+							var cell: BoardCell = w.cells[i]
+							var letter_pts: int = GameData.score_for_letter(ch)
+							if cell.get_modifier() == GameData.MOD_2X:
+								letter_pts *= 2
+								sub_mods.append("2x@%d" % (i - start_idx))
+							sub_points += letter_pts
+						# Apply word bonus if at least one new tile in sub-word
+						var has_new_tile := false
+						for i in range(start_idx, end_idx):
+							if w.cells[i] in pending_cells:
+								has_new_tile = true
+								break
+						if has_new_tile:
+							sub_points *= WORD_BONUS_MULTIPLIER
+						var mods_str := ", ".join(sub_mods) if sub_mods.size() > 0 else "none"
+						print("VALID:   %s = %d points (modifiers: %s)" % [sub_word, sub_points, mods_str])
+						total += sub_points
+			# If no valid sub-words, score just the letter values (no word bonus)
+			if not sub_words_found:
+				var letter_points := 0
+				var mods_parts: Array = []
+				for i in (w.text as String).length():
+					var ch: String = w.text[i]
+					var cell: BoardCell = w.cells[i]
+					var letter_pts: int = GameData.score_for_letter(ch)
+					if cell.get_modifier() == GameData.MOD_2X:
+						letter_pts *= 2
+						mods_parts.append("2x@%d" % i)
+					letter_points += letter_pts
+				var mods_str := ", ".join(mods_parts) if mods_parts.size() > 0 else "none"
+				print("invalid: %s = %d points (modifiers: %s)" % [w.text, letter_points, mods_str])
+				total += letter_points
 	return total
+
+func _score_word(w: Dictionary) -> int:
+	var word_points := 0
+	var mods_parts: Array = []
+	for i in (w.text as String).length():
+		var ch: String = (w.text as String)[i]
+		var cell: BoardCell = w.cells[i]
+		var letter_pts: int = GameData.score_for_letter(ch)
+		if cell.get_modifier() == GameData.MOD_2X:
+			letter_pts *= 2
+			mods_parts.append("2x@%d" % i)
+		word_points += letter_pts
+	word_points *= WORD_BONUS_MULTIPLIER
+	return word_points
+
+func _get_modifiers_str(w: Dictionary) -> String:
+	var mods_parts: Array = []
+	for i in (w.text as String).length():
+		var cell: BoardCell = w.cells[i]
+		if cell.get_modifier() == GameData.MOD_2X:
+			mods_parts.append("2x@%d" % i)
+	return ", ".join(mods_parts) if mods_parts.size() > 0 else "none"
 
 func _extract_word_in_direction(cell: BoardCell, dir: Vector2i) -> Dictionary:
 	var start_pos := cell.grid_pos

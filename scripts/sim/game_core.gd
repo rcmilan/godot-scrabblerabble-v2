@@ -206,18 +206,61 @@ func _calculate_turn_score(pending_positions: Array) -> int:
 
 	var total := 0
 	for w in words_found:
-		var word_points := 0
-		for i in (w.text as String).length():
-			var ch: String = (w.text as String)[i]
-			var cell_pos: Vector2i = w.cells[i]
-			var letter_pts: int = LETTER_POINTS.get(ch.to_upper(), 0)
-			if board_modifiers[cell_pos.x][cell_pos.y] == MOD_2X:
-				letter_pts *= 2
-			word_points += letter_pts
 		if is_valid_word(w.text):
-			word_points *= WORD_BONUS_MULTIPLIER
-		total += word_points
+			# Full word is valid - score it with word bonus
+			var word_points := _score_word_sim(w)
+			total += word_points
+		else:
+			# Full word is invalid - try to find valid sub-words
+			var sub_words_found := false
+			# Try all possible sub-words (length 2+)
+			for start_idx in range(w.text.length() - 1):
+				for end_idx in range(start_idx + 2, w.text.length() + 1):
+					var sub_word: String = w.text.substr(start_idx, end_idx - start_idx)
+					if is_valid_word(sub_word):
+						sub_words_found = true
+						# Calculate score for sub-word
+						var sub_points := 0
+						for i in range(start_idx, end_idx):
+							var ch: String = w.text[i]
+							var cell_pos: Vector2i = w.cells[i]
+							var letter_pts: int = LETTER_POINTS.get(ch.to_upper(), 0)
+							if board_modifiers[cell_pos.x][cell_pos.y] == MOD_2X:
+								letter_pts *= 2
+							sub_points += letter_pts
+						# Apply word bonus if at least one new tile in sub-word
+						var has_new_tile := false
+						for i in range(start_idx, end_idx):
+							if w.cells[i] in pending_positions:
+								has_new_tile = true
+								break
+						if has_new_tile:
+							sub_points *= WORD_BONUS_MULTIPLIER
+						total += sub_points
+			# If no valid sub-words, score just the letter values (no word bonus)
+			if not sub_words_found:
+				var letter_points := 0
+				for i in (w.text as String).length():
+					var ch: String = w.text[i]
+					var cell_pos: Vector2i = w.cells[i]
+					var letter_pts: int = LETTER_POINTS.get(ch.to_upper(), 0)
+					if board_modifiers[cell_pos.x][cell_pos.y] == MOD_2X:
+						letter_pts *= 2
+					letter_points += letter_pts
+				total += letter_points
 	return total
+
+func _score_word_sim(w: Dictionary) -> int:
+	var word_points := 0
+	for i in (w.text as String).length():
+		var ch: String = (w.text as String)[i]
+		var cell_pos: Vector2i = w.cells[i]
+		var letter_pts: int = LETTER_POINTS.get(ch.to_upper(), 0)
+		if board_modifiers[cell_pos.x][cell_pos.y] == MOD_2X:
+			letter_pts *= 2
+		word_points += letter_pts
+	word_points *= WORD_BONUS_MULTIPLIER
+	return word_points
 
 func _extract_word_in_direction(pos: Vector2i, dir: Vector2i) -> Dictionary:
 	var start_pos := pos
