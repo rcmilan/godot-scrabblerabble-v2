@@ -28,6 +28,32 @@ const LETTER_POINTS = {
 	"V": 4, "W": 4, "X": 8, "Y": 4, "Z": 10,
 }
 
+# Dictionary cache shared by sim and strategies. GameData autoload isn't reliably
+# available under --script, so we load data/words.txt directly. Empty on load
+# failure — sim falls through to "no bonus" rather than crashing.
+static var _dictionary: Dictionary = {}
+static var _dictionary_loaded: bool = false
+
+static func _ensure_dictionary_loaded() -> void:
+	if _dictionary_loaded:
+		return
+	_dictionary_loaded = true
+	var f := FileAccess.open("res://data/words.txt", FileAccess.READ)
+	if f == null:
+		push_warning("[GameCore] could not open res://data/words.txt — bonus disabled")
+		return
+	# Mirror GameData._load_dictionary filter: length 2..8 inclusive, uppercase.
+	# Drifting from that filter silently changes which words trigger the 2x bonus.
+	while not f.eof_reached():
+		var line := f.get_line().strip_edges().to_upper()
+		if line.length() >= 2 and line.length() <= 8:
+			_dictionary[line] = true
+	print("[GameCore] dictionary loaded: %d words" % _dictionary.size())
+
+static func is_valid_word(text: String) -> bool:
+	_ensure_dictionary_loaded()
+	return _dictionary.has(text.to_upper())
+
 # Board state: 8x8, indexed [x][y], values are letter strings.
 var board: Array = []
 
@@ -120,6 +146,8 @@ func _calculate_turn_score(pending_positions: Array) -> int:
 		var word_points := 0
 		for letter in (w.text as String):
 			word_points += LETTER_POINTS.get(letter.to_upper(), 0)
+		if is_valid_word(w.text):
+			word_points *= WORD_BONUS_MULTIPLIER
 		total += word_points
 	return total
 
