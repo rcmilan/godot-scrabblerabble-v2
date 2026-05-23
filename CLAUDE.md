@@ -106,9 +106,14 @@ strategies without launching the UI. Layout:
   `WORD_BONUS_MULTIPLIER`, `BOARD_SIZE`, `RACK_SIZE`, `LETTER_DISTRIBUTION`,
   `LETTER_POINTS`) in the main game, mirror the change in `game_core.gd`
   or sim parity will silently drift. See `scripts/sim/README.md`.
+  Also owns the sim's dictionary cache: `GameCore.is_valid_word(text)`
+  loads `res://data/words.txt` once, mirroring `GameData._load_dictionary`'s
+  length 2..8 filter. If that filter changes in `game_data.gd`, mirror it
+  here too — otherwise the 2× word bonus diverges between live and sim.
 - `strategy.gd` — base class. New strategies go in `strategies/` and
   extend it (see `random_strategy.gd`, `greedy_strategy.gd`,
-  `word_search_strategy.gd`). Respect the 50ms-per-turn time budget.
+  `word_search_strategy.gd`, `diagonal_cluster_strategy.gd`). Respect
+  the 50ms-per-turn time budget.
 - `simulator.gd` — `run_batch(strategies, runs, base_seed)` runs N games
   with seeded RNG (deterministic; same seed → same result).
 - `results_writer.gd` — writes CSV + JSONL to `./sim_results/`
