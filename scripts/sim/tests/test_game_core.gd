@@ -100,3 +100,59 @@ func test_cross_word_skip_length_one() -> bool:
 		return false
 
 	return true
+
+# TC6 - Target curve parity: rounds 1-4 produce expected target sequence.
+func test_target_curve_parity() -> bool:
+	var core = GameCore.new(999)
+	var expected_targets = [20, 30, 40, 55]
+
+	for round_num in range(4):
+		if core.target_score != expected_targets[round_num]:
+			push_error("Round %d: expected target %d, got %d" % [
+				round_num + 1, expected_targets[round_num], core.target_score])
+			return false
+		# Simulate winning the round
+		core.round_score = core.target_score + 1
+		core._advance_round()
+
+	return true
+
+# TC7 - Round advance ordering: round resets BEFORE target advances.
+func test_round_advance_ordering() -> bool:
+	var core = GameCore.new(888)
+	# Start: round 1, target 20, turns_left 3, tiles_per_turn 4
+	if core.current_round != 1 or core.tiles_per_turn != 4:
+		push_error("Initial state wrong")
+		return false
+
+	# Trigger round advance
+	core.round_score = 25
+	core.turns_left = 1
+	core._advance_round()
+
+	# After advance: round 2, target 30, turns_left 3, tiles_per_turn 5
+	if core.current_round != 2:
+		push_error("Round didn't advance")
+		return false
+	if core.target_score != 30:
+		push_error("Target should be 30, got %d" % core.target_score)
+		return false
+	if core.turns_left != 3:
+		push_error("Turns should reset to 3, got %d" % core.turns_left)
+		return false
+	if core.tiles_per_turn != 5:
+		push_error("tiles_per_turn should be 5, got %d" % core.tiles_per_turn)
+		return false
+
+	return true
+
+# TC8 - Game over trigger: missing target on last turn sets game over.
+func test_game_over_trigger() -> bool:
+	var core = GameCore.new(777)
+	core.turns_left = 1
+	core.round_score = 5  # Below target of 20
+	core.end_turn([])  # Score 0, stay below target, turns becomes 0
+	if not core.is_game_over:
+		push_error("Game should be over after last turn")
+		return false
+	return true

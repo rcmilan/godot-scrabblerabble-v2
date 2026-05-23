@@ -131,9 +131,23 @@ func _extract_word_in_direction(pos: Vector2i, dir: Vector2i) -> Dictionary:
 	return {"text": text, "start": start_pos}
 
 func clear_board() -> void:
-	# TODO: implement
-	pass
+	for x in BOARD_SIZE:
+		for y in BOARD_SIZE:
+			board[x][y] = ""
 
 func _advance_round() -> void:
-	# TODO: implement target curve and progression
-	pass
+	# Reset round state BEFORE advancing target, so progression is correct.
+	current_round += 1
+	round_score = 0
+	turns_left = TURNS_PER_ROUND
+	tiles_per_turn += 1
+	if current_round == 2:
+		_t_prev = _t_curr
+		_t_curr = 30.0
+		target_score = 30
+	else:
+		var next := _t_curr + _t_prev / 2.0
+		_t_prev = _t_curr
+		_t_curr = next
+		target_score = int(next)
+	clear_board()
