@@ -14,12 +14,11 @@ var _last_click_ms: int = -1
 var _press_pos: Vector2 = Vector2.ZERO
 var _pressed: bool = false
 var _dragging: bool = false
-var _icon_visual: Control = null
-var _label: Label = null
 
 func _ready() -> void:
 	mouse_filter = MOUSE_FILTER_STOP
 	custom_minimum_size = Vector2(80, 100)
+	focus_mode = FOCUS_ALL  # Allow keyboard focus
 	_setup_visual()
 
 func _setup_visual() -> void:
@@ -33,10 +32,6 @@ func _setup_visual() -> void:
 			_setup_scrabblerabble_visual()
 
 func _setup_mod2x_visual() -> void:
-	# Create a container for the icon and label
-	var container = VBoxContainer.new()
-	add_child(container)
-
 	# Create a tile visual with a random letter and MOD_2X modifier
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash(RunState.current_round)
@@ -47,60 +42,93 @@ func _setup_mod2x_visual() -> void:
 	tile.letter = random_letter
 	tile.set_modifier(GameData.MOD_2X)
 	tile.custom_minimum_size = Vector2(48, 48)
-	container.add_child(tile)
-	_icon_visual = tile
+	tile.anchor_left = 0.5
+	tile.anchor_top = 0.0
+	tile.offset_left = -24
+	tile.offset_top = 0
+	tile.mouse_filter = MOUSE_FILTER_PASS  # Pass input to parent
+	add_child(tile)
 
-	# Add label
-	_label = Label.new()
-	_label.text = "mod-2x.exe"
-	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	container.add_child(_label)
+	# Add label below the icon
+	var label := Label.new()
+	label.text = "mod-2x.exe"
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.anchor_left = 0.0
+	label.anchor_top = 0.6
+	label.anchor_right = 1.0
+	label.anchor_bottom = 1.0
+	label.mouse_filter = MOUSE_FILTER_PASS  # Pass input to parent
+	add_child(label)
 
 func _setup_user_visual() -> void:
-	# Create a container
-	var container = VBoxContainer.new()
-	add_child(container)
-
 	# Create a simple folder-like icon
 	var panel := Panel.new()
 	panel.custom_minimum_size = Vector2(48, 48)
 	panel.modulate = Color(0.7, 0.7, 0.7)
-	container.add_child(panel)
+	panel.anchor_left = 0.5
+	panel.anchor_top = 0.0
+	panel.offset_left = -24
+	panel.offset_top = 0
+	panel.mouse_filter = MOUSE_FILTER_PASS  # Pass input to parent
+	add_child(panel)
 
 	var label_icon := Label.new()
 	label_icon.text = "📁"
 	label_icon.add_theme_font_size_override("font_size", 24)
+	label_icon.anchor_left = 0.0
+	label_icon.anchor_top = 0.0
+	label_icon.anchor_right = 1.0
+	label_icon.anchor_bottom = 1.0
+	label_icon.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label_icon.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label_icon.mouse_filter = MOUSE_FILTER_PASS  # Pass input to parent
 	panel.add_child(label_icon)
-	_icon_visual = panel
 
-	# Add label
-	_label = Label.new()
-	_label.text = "user"
-	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	container.add_child(_label)
+	# Add label below the icon
+	var label := Label.new()
+	label.text = "user"
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.anchor_left = 0.0
+	label.anchor_top = 0.6
+	label.anchor_right = 1.0
+	label.anchor_bottom = 1.0
+	label.mouse_filter = MOUSE_FILTER_PASS  # Pass input to parent
+	add_child(label)
 
 func _setup_scrabblerabble_visual() -> void:
-	# Create a container
-	var container = VBoxContainer.new()
-	add_child(container)
-
 	# Create a simple game icon
 	var panel := Panel.new()
 	panel.custom_minimum_size = Vector2(48, 48)
 	panel.modulate = Color(0.4, 0.4, 0.8)
-	container.add_child(panel)
+	panel.anchor_left = 0.5
+	panel.anchor_top = 0.0
+	panel.offset_left = -24
+	panel.offset_top = 0
+	panel.mouse_filter = MOUSE_FILTER_PASS  # Pass input to parent
+	add_child(panel)
 
 	var label_icon := Label.new()
 	label_icon.text = "🎮"
 	label_icon.add_theme_font_size_override("font_size", 24)
+	label_icon.anchor_left = 0.0
+	label_icon.anchor_top = 0.0
+	label_icon.anchor_right = 1.0
+	label_icon.anchor_bottom = 1.0
+	label_icon.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label_icon.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	label_icon.mouse_filter = MOUSE_FILTER_PASS  # Pass input to parent
 	panel.add_child(label_icon)
-	_icon_visual = panel
 
-	# Add label
-	_label = Label.new()
-	_label.text = "scrabblerabble.exe"
-	_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	container.add_child(_label)
+	# Add label below the icon
+	var label := Label.new()
+	label.text = "scrabblerabble.exe"
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.anchor_left = 0.0
+	label.anchor_top = 0.6
+	label.anchor_right = 1.0
+	label.anchor_bottom = 1.0
+	label.mouse_filter = MOUSE_FILTER_PASS  # Pass input to parent
+	add_child(label)
 
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
