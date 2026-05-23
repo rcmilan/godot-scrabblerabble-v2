@@ -13,6 +13,9 @@ const WORD_BONUS_MULTIPLIER:  int = 2
 const BOARD_SIZE:             int = 8
 const RACK_SIZE:              int = 7
 
+const MOD_NONE: String = ""
+const MOD_2X:   String = "2x"
+
 # Letter distribution and points (from GameData, embedded here for headless mode)
 const LETTER_DISTRIBUTION = {
 	"A": 9, "B": 2, "C": 2, "D": 4, "E": 12, "F": 2, "G": 3,
@@ -56,9 +59,11 @@ static func is_valid_word(text: String) -> bool:
 
 # Board state: 8x8, indexed [x][y], values are letter strings.
 var board: Array = []
+# Parallel modifier state: same shape as board, default MOD_NONE.
+var board_modifiers: Array = []
 
-# Rack: current letters, length up to 7.
-var rack: Array[String] = []
+# Rack: each entry is {"letter": String, "modifier": String}.
+var rack: Array = []
 
 # RNG seeded per game.
 var rng: RandomNumberGenerator
@@ -84,37 +89,85 @@ func _init(seed: int) -> void:
 func _init_board() -> void:
 	board.clear()
 	board.resize(BOARD_SIZE)
+	board_modifiers.clear()
+	board_modifiers.resize(BOARD_SIZE)
 	for x in BOARD_SIZE:
 		board[x] = []
 		board[x].resize(BOARD_SIZE)
+		board_modifiers[x] = []
+		board_modifiers[x].resize(BOARD_SIZE)
 		for y in BOARD_SIZE:
 			board[x][y] = ""
+			board_modifiers[x][y] = MOD_NONE
 
-func draw_letter() -> String:
+func _draw_letter_raw() -> String:
 	var bag: Array[String] = []
 	for letter in LETTER_DISTRIBUTION.keys():
 		for _i in LETTER_DISTRIBUTION[letter]:
 			bag.append(letter)
 	return bag[rng.randi() % bag.size()]
 
+# Kept public for TC2 backward compatibility.
+func draw_letter() -> String:
+	return _draw_letter_raw()
+
+func draw_tile() -> Dictionary:
+	return {"letter": _draw_letter_raw(), "modifier": MOD_NONE}
+
+func rack_letters() -> Array:
+	var out: Array = []
+	for t in rack:
+		out.append(t.letter)
+	return out
+
 func refill_rack() -> void:
 	while rack.size() < RACK_SIZE:
-		var letter := draw_letter()
-		rack.append(letter)
+		rack.append(draw_tile())
+	_ensure_modifier_in_rack(MOD_2X)
+
+func _ensure_modifier_in_rack(mod: String) -> void:
+	for t in rack:
+		if t.modifier == mod:
+			return
+	# No tile with this modifier. Promote the lowest-value unmodified tile.
+	# Deterministic (lowest-value-wins, first on tie) to keep sim reproducible.
+	var target_idx := -1
+	var target_pts := 9999
+	for i in rack.size():
+		var t = rack[i]
+		if t.modifier != MOD_NONE:
+			continue
+		var pts: int = LETTER_POINTS.get(t.letter, 0)
+		if pts < target_pts:
+			target_pts = pts
+			target_idx = i
+	if target_idx >= 0:
+		rack[target_idx].modifier = mod
 
 func is_cell_empty(pos: Vector2i) -> bool:
 	if pos.x < 0 or pos.x >= BOARD_SIZE or pos.y < 0 or pos.y >= BOARD_SIZE:
 		return false
 	return board[pos.x][pos.y] == ""
 
-func place_pending(letter: String, pos: Vector2i) -> bool:
+# Writes tile to board only; caller is responsible for removing it from rack.
+func place_pending_tile(tile: Dictionary, pos: Vector2i) -> bool:
 	if not is_cell_empty(pos):
 		return false
-	if letter not in rack:
-		return false
-	board[pos.x][pos.y] = letter
-	rack.erase(letter)
+	board[pos.x][pos.y] = tile.letter
+	board_modifiers[pos.x][pos.y] = tile.modifier
 	return true
+
+# Legacy wrapper: finds and removes the letter from rack, then calls place_pending_tile.
+func place_pending(letter: String, pos: Vector2i) -> bool:
+	for i in rack.size():
+		if rack[i].letter == letter:
+			var tile_dict = rack[i]
+			rack.remove_at(i)
+			if place_pending_tile(tile_dict, pos):
+				return true
+			rack.append(tile_dict)
+			return false
+	return false
 
 func end_turn(pending_positions: Array) -> int:
 	var turn_score := _calculate_turn_score(pending_positions)
@@ -144,8 +197,13 @@ func _calculate_turn_score(pending_positions: Array) -> int:
 	var total := 0
 	for w in words_found:
 		var word_points := 0
-		for letter in (w.text as String):
-			word_points += LETTER_POINTS.get(letter.to_upper(), 0)
+		for i in (w.text as String).length():
+			var ch: String = (w.text as String)[i]
+			var cell_pos: Vector2i = w.cells[i]
+			var letter_pts: int = LETTER_POINTS.get(ch.to_upper(), 0)
+			if board_modifiers[cell_pos.x][cell_pos.y] == MOD_2X:
+				letter_pts *= 2
+			word_points += letter_pts
 		if is_valid_word(w.text):
 			word_points *= WORD_BONUS_MULTIPLIER
 		total += word_points
@@ -161,6 +219,7 @@ func _extract_word_in_direction(pos: Vector2i, dir: Vector2i) -> Dictionary:
 			break
 		start_pos = prev
 	var text := ""
+	var cells_arr: Array = []
 	var p := start_pos
 	while true:
 		if p.x < 0 or p.x >= BOARD_SIZE or p.y < 0 or p.y >= BOARD_SIZE:
@@ -168,13 +227,15 @@ func _extract_word_in_direction(pos: Vector2i, dir: Vector2i) -> Dictionary:
 		if board[p.x][p.y] == "":
 			break
 		text += board[p.x][p.y]
+		cells_arr.append(p)
 		p += dir
-	return {"text": text, "start": start_pos}
+	return {"text": text, "start": start_pos, "cells": cells_arr}
 
 func clear_board() -> void:
 	for x in BOARD_SIZE:
 		for y in BOARD_SIZE:
 			board[x][y] = ""
+			board_modifiers[x][y] = MOD_NONE
 
 func _advance_round() -> void:
 	# Reset round state BEFORE advancing target, so progression is correct.

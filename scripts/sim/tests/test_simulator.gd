@@ -83,3 +83,34 @@ func test_results_json_serializable() -> bool:
 			return false
 
 	return true
+
+# TSM6 - Determinism under modifier: same seed + strategy produces identical results.
+func test_determinism_under_modifier() -> bool:
+	var Simulator = load("res://scripts/sim/simulator.gd")
+	var GreedyStrategy = load("res://scripts/sim/strategies/greedy_strategy.gd")
+	var sim = Simulator.new()
+
+	var results1 = sim.run_batch([GreedyStrategy.new()], 3, 7777)
+	var results2 = sim.run_batch([GreedyStrategy.new()], 3, 7777)
+
+	if results1.size() != results2.size():
+		push_error("TSM6: result count mismatch")
+		return false
+
+	for i in range(results1.size()):
+		var r1 = results1[i]
+		var r2 = results2[i]
+		if r1.total_turns_played != r2.total_turns_played:
+			push_error("TSM6 run %d: turns differ %d vs %d" % [i, r1.total_turns_played, r2.total_turns_played])
+			return false
+		if r1.total_score_across_rounds != r2.total_score_across_rounds:
+			push_error("TSM6 run %d: total score differs %d vs %d" % [i, r1.total_score_across_rounds, r2.total_score_across_rounds])
+			return false
+		for t in range(r1.turn_log.size()):
+			var t1 = r1.turn_log[t]
+			var t2 = r2.turn_log[t]
+			if t1.score != t2.score or t1.placed_count != t2.placed_count:
+				push_error("TSM6 run %d turn %d: score/placed_count differs" % [i, t])
+				return false
+
+	return true

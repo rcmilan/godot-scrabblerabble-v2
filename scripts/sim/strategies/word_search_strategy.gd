@@ -71,14 +71,14 @@ func _pick_anchor_cell(core) -> Vector2i:
 
 func _find_words_in_direction(core, anchor: Vector2i, direction: Vector2i, start_ms: int) -> Array:
 	var words = []
+	var rack_ltrs = core.rack_letters()
 
-	# For this anchor, try rack subsets
-	for subset_size in range(1, min(core.tiles_per_turn + 1, core.rack.size() + 1)):
+	for subset_size in range(1, min(core.tiles_per_turn + 1, rack_ltrs.size() + 1)):
 		if Time.get_ticks_msec() - start_ms > TIME_BUDGET_MS:
 			break
 
 		# Try all permutations of this size
-		var subsets = _get_rack_subsets(core.rack, subset_size)
+		var subsets = _get_rack_subsets(rack_ltrs, subset_size)
 		for subset in subsets:
 			if Time.get_ticks_msec() - start_ms > TIME_BUDGET_MS:
 				break
@@ -133,11 +133,11 @@ func _subset_to_moves(core, anchor: Vector2i, direction: Vector2i, letters: Arra
 
 	return moves
 
-func _get_rack_subsets(rack: Array, size: int) -> Array:
+func _get_rack_subsets(rack_ltrs: Array, size: int) -> Array:
 	# Simple implementation: just unique combinations
 	var subsets = []
 	var letters_available = {}
-	for letter in rack:
+	for letter in rack_ltrs:
 		letters_available[letter] = letters_available.get(letter, 0) + 1
 
 	# Generate subsets by picking different letters
@@ -185,10 +185,11 @@ func _is_valid_word(word: String) -> bool:
 
 func _random_fallback(core) -> Array:
 	# Place one random tile
-	if core.rack.is_empty():
+	var rack_ltrs = core.rack_letters()
+	if rack_ltrs.is_empty():
 		return []
 
-	var letter = core.rack[core.rng.randi() % core.rack.size()]
+	var letter = rack_ltrs[core.rng.randi() % rack_ltrs.size()]
 	var pos = Vector2i(core.rng.randi() % core.BOARD_SIZE, core.rng.randi() % core.BOARD_SIZE)
 
 	for _attempt in 100:

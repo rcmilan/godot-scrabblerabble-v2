@@ -6,9 +6,10 @@ signal cell_clicked(cell: BoardCell)
 
 @onready var label: Label = $Label
 
-var grid_pos: Vector2i = Vector2i.ZERO
-var current_tile: Tile = null
-var locked_letter: String = ""
+var grid_pos:       Vector2i = Vector2i.ZERO
+var current_tile:   Tile     = null
+var locked_letter:  String   = ""
+var locked_modifier: String  = ""
 
 const C_OUTER_LIGHT := Color("#FFFFFF")
 const C_INNER_LIGHT := Color("#DFDFDF")
@@ -18,6 +19,9 @@ const C_CURSOR      := Color("#00FFFF")
 const C_BG_EMPTY    := Color("#C0C0C0")
 const C_BG_TILE     := Color("#FFFFC0")
 const CURSOR_PERIOD := 0.5
+
+const C_MOD_GRADIENT_LEFT  := Color(0.0,        0.0,         0.5019, 1.0)
+const C_MOD_GRADIENT_RIGHT := Color(16.0/255.0, 132.0/255.0, 208.0/255.0, 1.0)
 
 var _cursor_visible := true
 var _cursor_timer   := 0.0
@@ -58,9 +62,15 @@ func _draw() -> void:
 	var w      := int(size.x)
 	var h      := int(size.y)
 	var filled := not is_empty()
+	var has_mod := (locked_modifier == GameData.MOD_2X) or \
+				   (current_tile != null and current_tile.modifier == GameData.MOD_2X)
 
-	# Background — cream when occupied, gray when empty
-	draw_rect(Rect2(0, 0, w, h), C_BG_TILE if filled else C_BG_EMPTY)
+	# Background
+	if filled and has_mod:
+		_draw_horizontal_gradient(Rect2(0, 0, w, h),
+			C_MOD_GRADIENT_LEFT, C_MOD_GRADIENT_RIGHT)
+	else:
+		draw_rect(Rect2(0, 0, w, h), C_BG_TILE if filled else C_BG_EMPTY)
 
 	if filled:
 		# Raised bevel: light top-left, dark bottom-right (matches hand tile)
@@ -90,6 +100,21 @@ func _draw() -> void:
 		if _cursor_visible and is_empty():
 			draw_rect(Rect2(size.x * 0.5 - 6.0, size.y - 7.0, 12.0, 2.0), C_CURSOR)
 
+func _draw_horizontal_gradient(rect: Rect2, c0: Color, c1: Color) -> void:
+	var steps: int = int(rect.size.x)
+	for i in steps:
+		var t: float = float(i) / float(max(1, steps - 1))
+		var c: Color = c0.lerp(c1, t)
+		draw_rect(Rect2(rect.position.x + i, rect.position.y, 1.0, rect.size.y), c)
+
+func _sync_label_color() -> void:
+	var has_mod := (locked_modifier == GameData.MOD_2X) or \
+				   (current_tile != null and current_tile.modifier == GameData.MOD_2X)
+	if has_mod:
+		label.add_theme_color_override("font_color", Color.WHITE)
+	else:
+		label.remove_theme_color_override("font_color")
+
 func is_empty() -> bool:
 	return current_tile == null and locked_letter == ""
 
@@ -98,11 +123,17 @@ func get_letter() -> String:
 		return current_tile.letter
 	return locked_letter
 
+func get_modifier() -> String:
+	if current_tile != null:
+		return current_tile.modifier
+	return locked_modifier
+
 func place_tile(tile: Tile) -> void:
 	current_tile = tile
 	label.text = tile.letter
 	tile.location = "board"
 	tile.board_pos = grid_pos
+	_sync_label_color()
 	queue_redraw()
 	_play_place_animation()
 
@@ -119,15 +150,18 @@ func clear_pending() -> void:
 		label.text = ""
 	else:
 		label.text = locked_letter
+	_sync_label_color()
 	queue_redraw()
 
 func lock_pending() -> void:
 	if current_tile != null:
 		locked_letter = current_tile.letter
+		locked_modifier = current_tile.modifier
 		if current_tile.get_parent():
 			current_tile.get_parent().remove_child(current_tile)
 		current_tile.queue_free()
 		current_tile = null
+	_sync_label_color()
 	queue_redraw()
 
 func clear_all() -> void:
@@ -136,8 +170,10 @@ func clear_all() -> void:
 			current_tile.get_parent().remove_child(current_tile)
 		current_tile.queue_free()
 		current_tile = null
-	locked_letter = ""
-	label.text    = ""
+	locked_letter   = ""
+	locked_modifier = ""
+	label.text      = ""
+	_sync_label_color()
 	queue_redraw()
 
 # --- Drag and drop target ---

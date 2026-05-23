@@ -1,6 +1,9 @@
 # res://scripts/game_data.gd
 extends Node
 
+const MOD_NONE: String = ""
+const MOD_2X:   String = "2x"
+
 # Standard Scrabble letter point values (English).
 const LETTER_POINTS: Dictionary = {
 	"A": 1, "B": 3, "C": 3, "D": 2, "E": 1, "F": 4, "G": 2,

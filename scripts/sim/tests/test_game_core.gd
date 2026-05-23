@@ -156,3 +156,125 @@ func test_game_over_trigger() -> bool:
 		push_error("Game should be over after last turn")
 		return false
 	return true
+
+# TC9 - Modifier guarantee on refill: every fresh rack has exactly one MOD_2X tile.
+func test_modifier_guarantee_on_refill() -> bool:
+	for seed in range(20):
+		var core = GameCore.new(seed)
+		var count := 0
+		for t in core.rack:
+			if t.modifier == GameCore.MOD_2X:
+				count += 1
+		if count == 0:
+			push_error("TC9 seed %d: no MOD_2X tile in rack" % seed)
+			return false
+		if count > 1:
+			push_error("TC9 seed %d: %d MOD_2X tiles in rack (expected exactly 1)" % [seed, count])
+			return false
+	return true
+
+# TC10 - Modifier promotion picks lowest-value letter.
+func test_modifier_promotion_picks_lowest() -> bool:
+	var core = GameCore.new(100)
+	# Bypass refill_rack, write rack directly with known letters.
+	# T at index 3 is the only 1-pt tile → must be promoted.
+	core.rack = [
+		{"letter": "B", "modifier": GameCore.MOD_NONE},  # 3 pts
+		{"letter": "C", "modifier": GameCore.MOD_NONE},  # 3 pts
+		{"letter": "D", "modifier": GameCore.MOD_NONE},  # 2 pts
+		{"letter": "T", "modifier": GameCore.MOD_NONE},  # 1 pt  <- lowest
+		{"letter": "M", "modifier": GameCore.MOD_NONE},  # 3 pts
+		{"letter": "V", "modifier": GameCore.MOD_NONE},  # 4 pts
+		{"letter": "Q", "modifier": GameCore.MOD_NONE},  # 10 pts
+	]
+	core._ensure_modifier_in_rack(GameCore.MOD_2X)
+	if core.rack[3].modifier != GameCore.MOD_2X:
+		push_error("TC10: expected T (index 3) to be promoted, rack=%s" % str(core.rack))
+		return false
+	var count := 0
+	for t in core.rack:
+		if t.modifier == GameCore.MOD_2X:
+			count += 1
+	if count != 1:
+		push_error("TC10: expected exactly 1 MOD_2X tile, got %d" % count)
+		return false
+	return true
+
+# TC11 - Modifier scoring doubles letter contribution.
+func test_modifier_scoring_doubles_letter() -> bool:
+	var core = GameCore.new(200)
+	# Place CAT horizontally: C=3, A=1, T=1
+	core.board[0][0] = "C"
+	core.board[1][0] = "A"
+	core.board[2][0] = "T"
+	core.board_modifiers[0][0] = GameCore.MOD_2X  # C doubled: 6 instead of 3
+	var score = core._calculate_turn_score([Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0)])
+	# Expected: (C*2 + A + T) * WORD_BONUS = (6 + 1 + 1) * 2 = 16
+	# Without modifier: (3 + 1 + 1) * 2 = 10
+	if score != 16:
+		push_error("TC11: expected 16 for CAT with C=MOD_2X, got %d" % score)
+		return false
+	return true
+
+# TC12 - Modifier on invalid word still doubles the letter, no word bonus.
+func test_modifier_invalid_word_doubles_without_word_bonus() -> bool:
+	var test_word := "ZQX"
+	if GameCore.is_valid_word(test_word):
+		push_error("TC12: '%s' is in dictionary — cannot use it as an invalid-word test case" % test_word)
+		return false
+	var core = GameCore.new(300)
+	# Place ZQX horizontally: Z=10, Q=10, X=8
+	core.board[0][0] = "Z"
+	core.board[1][0] = "Q"
+	core.board[2][0] = "X"
+	core.board_modifiers[0][0] = GameCore.MOD_2X  # Z doubled: 20
+	var score = core._calculate_turn_score([Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0)])
+	# Expected: Z(2x)=20 + Q=10 + X=8 = 38 (no WORD_BONUS since invalid)
+	var expected := 10 * 2 + 10 + 8  # 38
+	if score != expected:
+		push_error("TC12: expected %d for invalid ZQX with Z=MOD_2X, got %d" % [expected, score])
+		return false
+	return true
+
+# TC13 - Modifier doubles in both directions when the tile is in a cross.
+func test_modifier_doubles_in_cross() -> bool:
+	var core = GameCore.new(400)
+	# Cross: horizontal "ZXQ" and vertical "JXK" sharing X at (2,2) with MOD_2X.
+	# Z(1,2)  X(2,2)*  Q(3,2)   — horizontal
+	# J(2,1)  X(2,2)*  K(2,3)   — vertical
+	core.board[1][2] = "Z"
+	core.board[2][2] = "X"
+	core.board[3][2] = "Q"
+	core.board[2][1] = "J"
+	core.board[2][3] = "K"
+	core.board_modifiers[2][2] = GameCore.MOD_2X
+
+	var score = core._calculate_turn_score([Vector2i(2, 2)])
+	# "ZXQ": Z=10, X(2x)=16, Q=10 → 36, invalid → no bonus
+	# "JXK": J=8, X(2x)=16, K=5  → 29, invalid → no bonus
+	# Total = 65
+	var expected := 10 + 8*2 + 10 + 8 + 8*2 + 5  # 65
+	if score != expected:
+		push_error("TC13: expected %d for cross with X=MOD_2X, got %d" % [expected, score])
+		return false
+	return true
+
+# TC14 - Modifier survives lock and round transitions; clears with clear_board.
+func test_modifier_survives_lock_and_clears() -> bool:
+	var core = GameCore.new(500)
+	var tile_dict := {"letter": "A", "modifier": GameCore.MOD_2X}
+	var placed := core.place_pending_tile(tile_dict, Vector2i(0, 0))
+	if not placed:
+		push_error("TC14: place_pending_tile failed")
+		return false
+	if core.board_modifiers[0][0] != GameCore.MOD_2X:
+		push_error("TC14: board_modifiers[0][0] should be MOD_2X after placement, got '%s'" %
+			core.board_modifiers[0][0])
+		return false
+	core.clear_board()
+	for x in GameCore.BOARD_SIZE:
+		for y in GameCore.BOARD_SIZE:
+			if core.board_modifiers[x][y] != GameCore.MOD_NONE:
+				push_error("TC14: board_modifiers[%d][%d] not MOD_NONE after clear_board()" % [x, y])
+				return false
+	return true

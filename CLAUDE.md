@@ -32,6 +32,10 @@ ends the run.
   is non-obvious — a hidden constraint, a Godot quirk, a workaround.
 - **No new files unless needed.** Prefer editing existing scenes/scripts.
 
+## Tile modifiers
+
+Tile modifier visuals (the Win98 navy-to-sky-blue gradient body) are drawn in `tile.gd::_draw` and `board_cell.gd::_draw`, not as a theme variation, because the gradient body can't be expressed as a `StyleBoxFlat`. Label colors swap to white in `_refresh_visual` / `_sync_label_color` respectively.
+
 ## Godot quirks worth remembering
 
 - **Theme inheritance does not cross `CanvasLayer` boundaries.** A dialog

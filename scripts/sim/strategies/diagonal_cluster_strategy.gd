@@ -16,7 +16,7 @@ extends "res://scripts/sim/strategy.gd"
 func pick_moves(core) -> Array:
 	var moves: Array = []
 	var local: Array = _copy_board(core)
-	var rack_copy: Array = core.rack.duplicate()
+	var rack_copy: Array = core.rack_letters().duplicate()
 	var tiles: int = min(int(core.tiles_per_turn), rack_copy.size())
 	var order: Array = _diagonal_sweep_order(core.BOARD_SIZE)
 
