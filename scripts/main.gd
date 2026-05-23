@@ -3,8 +3,9 @@ extends Control
 
 const WORD_BONUS_MULTIPLIER: int = 2
 
-const GLITTER_SCENE   := preload("res://scenes/glitter_emitter.tscn")
-const GAME_OVER_SCENE := preload("res://scenes/game_over_dialog.tscn")
+const GLITTER_SCENE          := preload("res://scenes/glitter_emitter.tscn")
+const GAME_OVER_SCENE        := preload("res://scenes/game_over_dialog.tscn")
+const ROUND_TRANSITION_SCENE := preload("res://scenes/round_transition.tscn")
 
 @onready var board:            Board  = %Board
 @onready var rack:             Rack   = %Rack
@@ -33,7 +34,7 @@ func _on_cell_focused(cell: BoardCell) -> void:
 # ---------- Input ----------
 func _unhandled_input(event: InputEvent) -> void:
 	# While the game over dialog is up, all input belongs to it.
-	if RunState.is_game_over:
+	if RunState.is_game_over or RunState.is_transitioning:
 		return
 	if event.is_action_pressed("ui_left"):
 		_move_cursor(Vector2i(-1, 0))
@@ -72,7 +73,7 @@ func _try_place_letter_on_cursor(letter: String) -> void:
 
 # ---------- Drag and drop ----------
 func on_tile_dropped_on_cell(tile: Tile, cell: BoardCell) -> void:
-	if not cell.is_empty():
+	if RunState.is_transitioning or not cell.is_empty():
 		return
 	_place_tile_on_cell(tile, cell)
 
@@ -179,13 +180,22 @@ func _update_hud() -> void:
 	tiles_left_label.text = "Turns left: %d  |  Tiles/turn: %d" % [
 		RunState.turns_left, RunState.tiles_per_turn]
 
-func _on_round_won(_round_num: int, _round_score: int, _target: int) -> void:
+func _on_round_won(round_num: int, _round_score: int, _target: int) -> void:
 	pending_cells.clear()
 	board.clear_all()
 	var emitter: GPUParticles2D = GLITTER_SCENE.instantiate()
 	add_child(emitter)
 	emitter.global_position = board.global_position + board.size * 0.5
 	_update_hud()
+	RunState.is_transitioning = true
+	var transition: CanvasLayer = ROUND_TRANSITION_SCENE.instantiate()
+	add_child(transition)
+	transition.finished.connect(_on_transition_finished)
+	transition.play(round_num)
+
+func _on_transition_finished() -> void:
+	RunState.is_transitioning = false
+	board.focus_cell(cursor)
 
 func _on_game_over(final_round: int, final_round_score: int, final_target: int) -> void:
 	_update_hud()

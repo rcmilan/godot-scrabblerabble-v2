@@ -16,6 +16,7 @@ var target_score:   int   = INITIAL_TARGET_SCORE
 var turns_left:     int   = TURNS_PER_ROUND
 var tiles_per_turn: int   = INITIAL_TILES_PER_TURN
 var is_game_over:   bool  = false
+var is_transitioning: bool = false
 var history:        Array = []
 
 var _t_prev: float = 0.0
@@ -27,6 +28,7 @@ func reset() -> void:
 	turns_left     = TURNS_PER_ROUND
 	tiles_per_turn = INITIAL_TILES_PER_TURN
 	is_game_over   = false
+	is_transitioning = false
 	history.clear()
 	_t_prev      = 0.0
 	_t_curr      = float(INITIAL_TARGET_SCORE)
