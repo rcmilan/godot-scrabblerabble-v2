@@ -35,6 +35,10 @@ window/stretch/scale_mode="integer"
 
 project/assembly_name="scrabblerabble"
 
+[gui]
+
+theme/custom="res://themes/win95.tres"
+
 [input]
 
 confirm_turn={

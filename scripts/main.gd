@@ -189,7 +189,8 @@ func _on_game_over(final_round: int, final_score: int) -> void:
 	var dialog: Panel = GAME_OVER_SCENE.instantiate()
 	dialog.setup(final_round, final_score)
 	var layer := CanvasLayer.new()
-	layer.layer = 200
+	# Below the CRT overlay (layer 100) so scanlines/vignette draw over the dialog.
+	layer.layer = 50
 	add_child(layer)
 	layer.add_child(dialog)
 	# Center the dialog. custom_minimum_size is reliable at this point;

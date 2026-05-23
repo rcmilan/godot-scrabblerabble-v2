@@ -1,12 +1,10 @@
-[gd_scene load_steps=3 format=3 uid="uid://b7gameoverdlg01"]
+[gd_scene load_steps=2 format=3 uid="uid://b7gameoverdlg01"]
 
 [ext_resource type="Script" path="res://scripts/game_over_dialog.gd" id="1"]
-[ext_resource type="Theme" uid="uid://3pupw0vetlo0" path="res://themes/win95.tres" id="2"]
 
 [node name="GameOverDialog" type="Panel"]
 custom_minimum_size = Vector2(340, 200)
 size = Vector2(340, 200)
-theme = ExtResource("2")
 theme_type_variation = &"WindowFrame"
 script = ExtResource("1")
 
