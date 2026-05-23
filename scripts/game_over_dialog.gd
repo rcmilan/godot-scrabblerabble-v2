@@ -1,15 +1,17 @@
 extends Panel
 
-var _rounds: int = 0
+var _round:  int = 0
 var _score:  int = 0
+var _target: int = 0
 
-func setup(rounds_survived: int, final_score: int) -> void:
-	_rounds = rounds_survived
-	_score  = final_score
+func setup(round_num: int, round_score: int, target: int) -> void:
+	_round  = round_num
+	_score  = round_score
+	_target = target
 
 func _ready() -> void:
-	$InnerVBox/BodyArea/RoundLabel.text = "You survived %d rounds." % _rounds
-	$InnerVBox/BodyArea/ScoreLabel.text = "Final score: %d"         % _score
+	$InnerVBox/BodyArea/RoundLabel.text = "Round %d"          % _round
+	$InnerVBox/BodyArea/ScoreLabel.text = "Score: %d / %d"    % [_score, _target]
 	$InnerVBox/BodyArea/ButtonRow/RestartButton.pressed.connect(_on_restart)
 	$InnerVBox/BodyArea/ButtonRow/QuitButton.pressed.connect(_on_quit)
 	# The X in the title bar matches Win95: closes the window → quits the game.

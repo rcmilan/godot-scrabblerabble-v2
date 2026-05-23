@@ -4,7 +4,7 @@ signal round_started(round_num: int, target: int, turns_left: int)
 signal round_score_changed(round_score: int, target: int)
 signal turns_left_changed(turns_left: int)
 signal round_won(round_num: int, round_score: int, target: int)
-signal game_over(final_round: int, total_score: int)
+signal game_over(final_round: int, final_round_score: int, final_target: int)
 
 const TURNS_PER_ROUND:        int = 3
 const INITIAL_TILES_PER_TURN: int = 4
@@ -12,7 +12,6 @@ const INITIAL_TARGET_SCORE:   int = 20
 
 var current_round:  int   = 1
 var round_score:    int   = 0
-var total_score:    int   = 0
 var target_score:   int   = INITIAL_TARGET_SCORE
 var turns_left:     int   = TURNS_PER_ROUND
 var tiles_per_turn: int   = INITIAL_TILES_PER_TURN
@@ -25,7 +24,6 @@ var _t_curr: float = float(INITIAL_TARGET_SCORE)
 func reset() -> void:
 	current_round  = 1
 	round_score    = 0
-	total_score    = 0
 	turns_left     = TURNS_PER_ROUND
 	tiles_per_turn = INITIAL_TILES_PER_TURN
 	is_game_over   = false
@@ -38,7 +36,6 @@ func reset() -> void:
 
 func register_turn_score(points: int) -> void:
 	round_score += points
-	total_score += points
 	turns_left  -= 1
 	round_score_changed.emit(round_score, target_score)
 	turns_left_changed.emit(turns_left)
@@ -46,8 +43,8 @@ func register_turn_score(points: int) -> void:
 		_advance_round()
 	elif turns_left <= 0:
 		is_game_over = true
-		print("[RunState] game over — survived %d rounds, total %d" % [current_round, total_score])
-		game_over.emit(current_round, total_score)
+		print("[RunState] game over — round %d, scored %d / %d" % [current_round, round_score, target_score])
+		game_over.emit(current_round, round_score, target_score)
 
 func _advance_round() -> void:
 	var won_round    := current_round

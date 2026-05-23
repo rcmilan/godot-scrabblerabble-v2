@@ -175,9 +175,9 @@ func _extract_word_in_direction(cell: BoardCell, dir: Vector2i) -> Dictionary:
 
 func _update_hud() -> void:
 	score_label.text      = "Score: %d  |  Round %d  |  Target: %d" % [
-		RunState.total_score, RunState.current_round, RunState.target_score]
-	tiles_left_label.text = "Round score: %d  |  Turns left: %d  |  Tiles/turn: %d" % [
-		RunState.round_score, RunState.turns_left, RunState.tiles_per_turn]
+		RunState.round_score, RunState.current_round, RunState.target_score]
+	tiles_left_label.text = "Turns left: %d  |  Tiles/turn: %d" % [
+		RunState.turns_left, RunState.tiles_per_turn]
 
 func _on_round_won(_round_num: int, _round_score: int, _target: int) -> void:
 	pending_cells.clear()
@@ -187,10 +187,10 @@ func _on_round_won(_round_num: int, _round_score: int, _target: int) -> void:
 	emitter.global_position = board.global_position + board.size * 0.5
 	_update_hud()
 
-func _on_game_over(final_round: int, final_score: int) -> void:
+func _on_game_over(final_round: int, final_round_score: int, final_target: int) -> void:
 	_update_hud()
 	var dialog: Panel = GAME_OVER_SCENE.instantiate()
-	dialog.setup(final_round, final_score)
+	dialog.setup(final_round, final_round_score, final_target)
 	var layer := CanvasLayer.new()
 	# Below the CRT overlay (layer 100) so scanlines/vignette draw over the dialog.
 	layer.layer = 50
