@@ -50,12 +50,16 @@ func _init_board() -> void:
 			board[x][y] = ""
 
 func draw_letter() -> String:
-	# TODO: implement weighted random draw matching Rack._draw_random_letter
-	return ""
+	var bag: Array[String] = []
+	for letter in GameData.LETTER_DISTRIBUTION.keys():
+		for _i in GameData.LETTER_DISTRIBUTION[letter]:
+			bag.append(letter)
+	return bag[rng.randi() % bag.size()]
 
 func refill_rack() -> void:
-	# TODO: implement rack refill matching Rack.refill
-	pass
+	while rack.size() < RACK_SIZE:
+		var letter := draw_letter()
+		rack.append(letter)
 
 func is_cell_empty(pos: Vector2i) -> bool:
 	# TODO: implement
