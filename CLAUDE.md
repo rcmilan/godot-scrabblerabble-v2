@@ -94,6 +94,57 @@ same guard or the player can mutate the board while an overlay is up.
 `RunState.reset()` then `get_tree().reload_current_scene()`. Do not try to
 manually tear down nodes — the scene reload handles it.
 
+## Simulation harness (`scripts/sim/`)
+
+A headless simulator lives under `scripts/sim/` for batch-evaluating
+strategies without launching the UI. Layout:
+
+- `game_core.gd` — **duplicate** of game logic from `main.gd`,
+  `run_state.gd`, `board.gd`, `rack.gd`. If you change scoring,
+  progression, tile draw, word extraction, or any related constant
+  (`TURNS_PER_ROUND`, `INITIAL_TILES_PER_TURN`, `INITIAL_TARGET_SCORE`,
+  `WORD_BONUS_MULTIPLIER`, `BOARD_SIZE`, `RACK_SIZE`, `LETTER_DISTRIBUTION`,
+  `LETTER_POINTS`) in the main game, mirror the change in `game_core.gd`
+  or sim parity will silently drift. See `scripts/sim/README.md`.
+  Also owns the sim's dictionary cache: `GameCore.is_valid_word(text)`
+  loads `res://data/words.txt` once, mirroring `GameData._load_dictionary`'s
+  length 2..8 filter. If that filter changes in `game_data.gd`, mirror it
+  here too — otherwise the 2× word bonus diverges between live and sim.
+- `strategy.gd` — base class. New strategies go in `strategies/` and
+  extend it (see `random_strategy.gd`, `greedy_strategy.gd`,
+  `word_search_strategy.gd`, `diagonal_cluster_strategy.gd`). Respect
+  the 50ms-per-turn time budget.
+- `simulator.gd` — `run_batch(strategies, runs, base_seed)` runs N games
+  with seeded RNG (deterministic; same seed → same result).
+- `results_writer.gd` — writes CSV + JSONL to `./sim_results/`
+  (relative path; `user://` paths are unreliable in headless mode).
+- `sim_runner.gd` — CLI entry point (`extends SceneTree`).
+- `tests/run_tests.gd` — test harness. `smoke.gd` runs 3 games end-to-end.
+  Prefix sim logs with `[Sim]` / `[GameCore]`, not `[RunState]`.
+
+### Running the simulator
+
+```
+godot --headless --path . --script res://scripts/sim/sim_runner.gd -- --runs 100 --strategies random,greedy,word_search --seed 42
+```
+
+Everything after `--` is parsed via `OS.get_cmdline_user_args()` (NOT
+`OS.get_cmdline_args()` — that returns engine args). Both `--key=value`
+and `--key value` forms are supported. Output dirs are created with
+`DirAccess.make_dir_absolute()`.
+
+### Headless-mode pitfalls
+
+- **Autoloads may not initialize** when invoked via `--script`. `GameData`
+  in particular is unreliable — strategies fall back to a built-in
+  Scrabble letter table and a simplified dictionary when it's missing.
+  Do not assume any autoload is available inside `scripts/sim/`.
+- **`user://` paths can be empty or unwritable.** Use relative paths
+  (`./sim_results/`) for sim output.
+- **Don't import scene-coupled scripts** (anything that touches
+  `_ready`, `$NodePath`, signals on UI nodes) from sim code. `game_core.gd`
+  exists precisely so the sim can stay scene-free.
+
 ## Working on a task
 
 1. Read the relevant scene + script together; Godot behavior often lives
@@ -101,6 +152,38 @@ manually tear down nodes — the scene reload handles it.
 2. Prefer the smallest possible change. A bug fix doesn't need a
    surrounding refactor.
 3. Commit messages should explain the *why* in 1–3 sentences. Match the
-   style of recent commits on `progression`.
+   style of recent commits on the current branch.
 4. Develop on the branch the user names. Push when the change is complete.
    Do not open PRs unless asked.
+5. If your change touches game logic that is duplicated in
+   `scripts/sim/game_core.gd`, update both — and run
+   `scripts/sim/tests/run_tests.gd` to confirm parity.
+
+## Harness for coding agents (lessons from prior PRs)
+
+These are recurring traps. Read before editing.
+
+- **Verify autoload availability before calling it.** Headless entry
+  points (`--script`) skip autoload init. Guard with
+  `if Engine.has_singleton(...)` or pass dependencies explicitly.
+- **Check Godot 4 vs 4.6 API differences.** This project targets Godot
+  4.6. Notable: `OS.get_cmdline_user_args()` for args after `--`,
+  `DirAccess.make_dir_absolute()` for directory creation. If unsure,
+  grep the codebase for an existing usage before inventing one.
+- **Determinism matters in the sim.** Always thread the seed through any
+  new RNG. Never call `randi()` / `randf()` directly inside sim code —
+  use the seeded `RandomNumberGenerator` instance from `GameCore`.
+- **Don't introduce new top-level dirs.** `scenes/`, `scripts/`,
+  `scripts/sim/`, `themes/`, `fonts/`, `data/`, `shaders/`,
+  `sim_results/` (gitignored) are the canonical set.
+- **Run the tests you touched.** For sim work, run
+  `godot --headless --path . --script res://scripts/sim/tests/run_tests.gd`
+  and confirm the existing TC1–TC8 / TS1–TS4 / TSM1–TSM5 cases still
+  pass before pushing.
+- **Don't paper over a failure.** If a sim test fails because a constant
+  drifted, fix the drift — don't relax the test. If headless can't
+  resolve an autoload, add a fallback or guard, don't silently swallow
+  the error.
+- **Match the commit-message style** of recent commits (`sim: ...`,
+  `fix: ...`, short headline + 2–5 body lines naming the test cases or
+  behavior touched).

@@ -3,3 +3,6 @@
 /android/
 
 .vs
+
+# Simulation results
+sim_results
