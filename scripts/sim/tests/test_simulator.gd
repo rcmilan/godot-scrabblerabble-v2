@@ -45,3 +45,41 @@ func test_games_terminate() -> bool:
 			return false
 
 	return true
+
+# TSM4 - Results have turn_log structure.
+func test_results_have_turn_log() -> bool:
+	var Simulator = load("res://scripts/sim/simulator.gd")
+	var RandomStrategy = load("res://scripts/sim/strategies/random_strategy.gd")
+
+	var sim = Simulator.new()
+	var results = sim.run_batch([RandomStrategy.new()], 3, 8888)
+
+	if results.size() != 3:
+		push_error("Expected 3 results, got %d" % results.size())
+		return false
+
+	for result in results:
+		if not result.has("turn_log"):
+			push_error("Result missing turn_log")
+			return false
+		if typeof(result.turn_log) != TYPE_ARRAY:
+			push_error("turn_log is not an array")
+			return false
+
+	return true
+
+# TSM5 - Results are JSON-serializable.
+func test_results_json_serializable() -> bool:
+	var Simulator = load("res://scripts/sim/simulator.gd")
+	var RandomStrategy = load("res://scripts/sim/strategies/random_strategy.gd")
+
+	var sim = Simulator.new()
+	var results = sim.run_batch([RandomStrategy.new()], 2, 9999)
+
+	for result in results:
+		var json_str = JSON.stringify(result)
+		if json_str.is_empty():
+			push_error("Failed to serialize result to JSON")
+			return false
+
+	return true
