@@ -32,6 +32,9 @@ func _on_cell_focused(cell: BoardCell) -> void:
 
 # ---------- Input ----------
 func _unhandled_input(event: InputEvent) -> void:
+	# While the game over dialog is up, all input belongs to it.
+	if RunState.is_game_over:
+		return
 	if event.is_action_pressed("ui_left"):
 		_move_cursor(Vector2i(-1, 0))
 		get_viewport().set_input_as_handled()
@@ -171,10 +174,10 @@ func _extract_word_in_direction(cell: BoardCell, dir: Vector2i) -> Dictionary:
 	return {"text": text, "start": start_pos}
 
 func _update_hud() -> void:
-	score_label.text      = "Total: %d  |  Round %d" % [RunState.total_score, RunState.current_round]
-	tiles_left_label.text = "Progress: %d / %d  |  Turns left: %d  |  Tiles/turn: %d" % [
-		RunState.round_score, RunState.target_score,
-		RunState.turns_left, RunState.tiles_per_turn]
+	score_label.text      = "Score: %d  |  Round %d  |  Target: %d" % [
+		RunState.total_score, RunState.current_round, RunState.target_score]
+	tiles_left_label.text = "Round score: %d  |  Turns left: %d  |  Tiles/turn: %d" % [
+		RunState.round_score, RunState.turns_left, RunState.tiles_per_turn]
 
 func _on_round_won(_round_num: int, _round_score: int, _target: int) -> void:
 	pending_cells.clear()

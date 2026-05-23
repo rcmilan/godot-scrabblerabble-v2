@@ -111,7 +111,7 @@ anti_aliasing = false
 
 [resource]
 default_font = ExtResource("FF_W95FA")
-default_font_size = 11
+default_font_size = 14
 BoardCell/base_type = &"Panel"
 BoardCell/styles/panel = SubResource("SB_Sunken")
 Button/colors/font_color = Color(0, 0, 0, 1)
@@ -119,14 +119,14 @@ Button/colors/font_disabled_color = Color(0.5019, 0.5019, 0.5019, 1)
 Button/colors/font_hover_color = Color(0, 0, 0, 1)
 Button/colors/font_pressed_color = Color(0, 0, 0, 1)
 Button/constants/h_separation = 4
-Button/font_sizes/font_size = 11
+Button/font_sizes/font_size = 14
 Button/styles/disabled = SubResource("SB_Disabled")
 Button/styles/focus = SubResource("SB_Focus")
 Button/styles/hover = SubResource("SB_RaisedNormal")
 Button/styles/normal = SubResource("SB_RaisedNormal")
 Button/styles/pressed = SubResource("SB_RaisedPressed")
 Label/colors/font_color = Color(0, 0, 0, 1)
-Label/font_sizes/font_size = 11
+Label/font_sizes/font_size = 14
 Panel/styles/panel = SubResource("SB_RaisedOuter")
 ScoreNeon/base_type = &"Label"
 ScoreNeon/colors/font_color = Color(0, 1, 1, 1)
