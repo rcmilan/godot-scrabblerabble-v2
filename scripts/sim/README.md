@@ -36,10 +36,27 @@ The following constants and functions were copied verbatim:
 - `LETTER_DISTRIBUTION` for weighted random draws
 - `LETTER_POINTS` for scoring
 - `is_valid_word()` for dictionary validation
+- `MOD_NONE` and `MOD_2X` constants for tile modifiers
+
+**From `rack.gd` and `board_cell.gd`:**
+- `_ensure_modifier_in_rack()` logic (deterministic promotion of lowest-value tile)
+- Tile modifier visual rendering (via `board_modifiers` array)
 
 ### Future Refactoring
 
 Once the simulator is proven useful, refactor `main.gd` and `run_state.gd` to delegate to `GameCore`, eliminating the duplication. At that point, `game_core.gd` becomes the single source of truth for all game logic.
+
+## Modifiers
+
+`game_core.gd` tracks a parallel board array `board_modifiers[x][y]` (same shape as `board`) alongside the letter grid. Each cell stores `MOD_NONE` (`""`) or `MOD_2X` (`"2x"`).
+
+**Constants:** `MOD_NONE` and `MOD_2X` are defined directly in `game_core.gd` (mirrored from `game_data.gd`; keep both in sync).
+
+**Rack shape:** `rack` is now `Array` of `{"letter": String, "modifier": String}` dicts instead of `Array[String]`. Use `rack_letters()` wherever strategies or tests need plain letter strings. The helper `draw_tile()` always produces `MOD_NONE`; `_ensure_modifier_in_rack(MOD_2X)` promotes one tile per refill.
+
+**Scoring:** `_calculate_turn_score` reads `board_modifiers` per cell when summing letter points. Letter modifier applies first, then the word bonus — the same order as the live game. Tie scoring changes in `main.gd` and `game_core.gd` together; they are the same calculation in both files.
+
+**Drift risk:** If `_ensure_modifier_in_rack`, `board_modifiers`, or the modifier constants change in either `game_core.gd` or the live files (`rack.gd`, `board_cell.gd`, `game_data.gd`), update the counterpart immediately or sim parity will silently diverge. Test coverage: TSM1–TSM6 verify modifier guarantee, promotion ordering, scoring with modifiers, and determinism.
 
 ## Running the Simulator
 

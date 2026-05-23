@@ -156,11 +156,19 @@ func _calculate_turn_score() -> int:
 	var total := 0
 	for w in words_found:
 		var word_points := 0
-		for letter in (w.text as String):
-			word_points += GameData.score_for_letter(letter)
+		var mods_parts: Array = []
+		for i in (w.text as String).length():
+			var ch: String = (w.text as String)[i]
+			var cell: BoardCell = w.cells[i]
+			var letter_pts: int = GameData.score_for_letter(ch)
+			if cell.get_modifier() == GameData.MOD_2X:
+				letter_pts *= 2
+				mods_parts.append("2x@%d" % i)
+			word_points += letter_pts
 		if GameData.is_valid_word(w.text):
 			word_points *= WORD_BONUS_MULTIPLIER
-			print("VALID:   %s = %d points" % [w.text, word_points])
+			var mods_str := ", ".join(mods_parts) if mods_parts.size() > 0 else "none"
+			print("VALID:   %s = %d points (modifiers: %s)" % [w.text, word_points, mods_str])
 		else:
 			print("invalid: %s = %d points (no bonus)" % [w.text, word_points])
 		total += word_points
@@ -175,14 +183,16 @@ func _extract_word_in_direction(cell: BoardCell, dir: Vector2i) -> Dictionary:
 			break
 		start_pos = prev
 	var text := ""
+	var cells_arr: Array = []
 	var p := start_pos
 	while true:
 		var c := board.get_cell(p)
 		if c == null or c.get_letter() == "":
 			break
 		text += c.get_letter()
+		cells_arr.append(c)
 		p += dir
-	return {"text": text, "start": start_pos}
+	return {"text": text, "start": start_pos, "cells": cells_arr}
 
 func _update_hud() -> void:
 	score_label.text      = "Score: %d  |  Round %d  |  Target: %d" % [
@@ -320,7 +330,12 @@ class _AutoplayAdapter:
 				board[x][y] = cell.get_letter() if cell else ""
 		rack.clear()
 		for tile in _rack_node.tiles_in_hand:
-			rack.append(tile.letter)
+			rack.append({"letter": tile.letter, "modifier": tile.modifier})
+	func rack_letters() -> Array:
+		var out: Array = []
+		for t in rack:
+			out.append(t.letter)
+		return out
 	func is_cell_empty(pos: Vector2i) -> bool:
 		if pos.x < 0 or pos.x >= BOARD_SIZE or pos.y < 0 or pos.y >= BOARD_SIZE:
 			return false

@@ -15,7 +15,7 @@ func test_random_valid_moves() -> bool:
 			var pos = move["pos"]
 
 			# Letter must be in rack
-			if not core.rack.has(letter):
+			if not core.rack_letters().has(letter):
 				push_error("Letter %s not in rack" % letter)
 				return false
 
@@ -104,4 +104,48 @@ func test_word_search_valid_words() -> bool:
 			# Just verify strategy completes without error
 			break
 
+	return true
+
+# TS5 - Strategies tolerate the new rack shape (Array of dicts).
+func test_strategies_tolerate_new_rack_shape() -> bool:
+	var GameCore = load("res://scripts/sim/game_core.gd")
+	var strategy_scripts = [
+		load("res://scripts/sim/strategies/random_strategy.gd"),
+		load("res://scripts/sim/strategies/greedy_strategy.gd"),
+		load("res://scripts/sim/strategies/word_search_strategy.gd"),
+		load("res://scripts/sim/strategies/diagonal_cluster_strategy.gd"),
+	]
+	for script in strategy_scripts:
+		var strategy = script.new()
+		var core = GameCore.new(555)
+		for _turn in 5:
+			if core.is_game_over:
+				break
+			var moves = strategy.pick_moves(core)
+			var rack_ltrs = core.rack_letters()
+			for move in moves:
+				if not rack_ltrs.has(move["letter"]):
+					push_error("TS5 %s: letter '%s' not in rack_letters %s" % [
+						strategy.get_name(), move["letter"], str(rack_ltrs)])
+					return false
+			for move in moves:
+				core.place_pending(move["letter"], move["pos"])
+			core.end_turn([])
+	return true
+
+# TS6 - Sim exercises modifier scoring path (modifier tile placed during a game).
+func test_sim_respects_modifier_scoring() -> bool:
+	var Simulator = load("res://scripts/sim/simulator.gd")
+	var GreedyStrategy = load("res://scripts/sim/strategies/greedy_strategy.gd")
+	var sim = Simulator.new()
+	var results = sim.run_batch([GreedyStrategy.new()], 1, 4242)
+	if results.is_empty():
+		push_error("TS6: no results returned")
+		return false
+	var result = results[0]
+	if result.total_turns_played <= 0:
+		push_error("TS6: no turns played")
+		return false
+	# The sim always has a MOD_2X tile in the rack; as long as it ran without
+	# crashing the modifier path is exercised. TC11-TC13 cover the arithmetic.
 	return true

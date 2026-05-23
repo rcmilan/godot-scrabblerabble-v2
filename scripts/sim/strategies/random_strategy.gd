@@ -6,14 +6,15 @@ extends "res://scripts/sim/strategy.gd"
 func pick_moves(core) -> Array:
 	var moves: Array = []
 	var tiles_to_place = core.tiles_per_turn
+	var rack_ltrs = core.rack_letters()
 
 	for _i in tiles_to_place:
-		if core.rack.is_empty():
+		if rack_ltrs.is_empty():
 			break
 
-		# Pick a random letter from the rack
-		var letter_idx = core.rng.randi() % core.rack.size()
-		var letter = core.rack[letter_idx]
+		# Pick a random letter from rack
+		var letter_idx = core.rng.randi() % rack_ltrs.size()
+		var letter = rack_ltrs[letter_idx]
 
 		# Find a random empty cell on the board
 		var max_attempts = 100

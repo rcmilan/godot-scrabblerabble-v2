@@ -32,6 +32,14 @@ ends the run.
   is non-obvious — a hidden constraint, a Godot quirk, a workaround.
 - **No new files unless needed.** Prefer editing existing scenes/scripts.
 
+## Tile modifiers
+
+**MOD_2X mechanic:** Each refill guarantees exactly one 2x letter-score modifier in the rack via `_ensure_modifier_in_rack()` (deterministic; always promotes the lowest-value tile). Letter score doubles when a tile with MOD_2X sits in a >=2-letter line at end-of-turn; the word bonus (2× when applicable) stacks on top.
+
+**Visual implementation:** Tile modifier visuals (the Win98 navy-to-sky-blue gradient body) are drawn in `tile.gd::_draw` and `board_cell.gd::_draw`, not as a theme variation, because the gradient body can't be expressed as a `StyleBoxFlat`. Label colors are hardcoded constants (navy for letter, dark-gray for point value) — `get_theme_color_override` does not exist in Godot 4.6.1. Use the hardcoded constants matching scene file values in `_refresh_visual` / `_sync_label_color`.
+
+**Sim parity:** `game_core.gd` mirrors the live game's modifier system via `board_modifiers[x][y]` parallel array and `MOD_NONE` / `MOD_2X` constants. If `_ensure_modifier_in_rack`, board modifier logic, or color constants change in `rack.gd`, `board_cell.gd`, `tile.gd`, or `game_data.gd`, update `game_core.gd` immediately. Test coverage: TC9–TC14 (guarantee, promotion, scoring), TS5–TS6 (sim parity), TSM1–TSM6 (modifier-specific tests).
+
 ## Godot quirks worth remembering
 
 - **Theme inheritance does not cross `CanvasLayer` boundaries.** A dialog
@@ -178,7 +186,7 @@ These are recurring traps. Read before editing.
   `sim_results/` (gitignored) are the canonical set.
 - **Run the tests you touched.** For sim work, run
   `godot --headless --path . --script res://scripts/sim/tests/run_tests.gd`
-  and confirm the existing TC1–TC8 / TS1–TS4 / TSM1–TSM5 cases still
+  and confirm the existing TC1–TC14 / TS1–TS6 / TSM1–TSM6 cases still
   pass before pushing.
 - **Don't paper over a failure.** If a sim test fails because a constant
   drifted, fix the drift — don't relax the test. If headless can't

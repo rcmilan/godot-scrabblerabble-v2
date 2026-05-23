@@ -6,9 +6,10 @@ extends "res://scripts/sim/strategy.gd"
 func pick_moves(core) -> Array:
 	var moves: Array = []
 	var tiles_to_place = core.tiles_per_turn
+	var rack_ltrs = core.rack_letters()
 
 	for _i in tiles_to_place:
-		if core.rack.is_empty():
+		if rack_ltrs.is_empty():
 			break
 
 		# Find all cells adjacent to existing letters (or center if board is empty)
@@ -24,11 +25,10 @@ func pick_moves(core) -> Array:
 		var cell_idx = core.rng.randi() % candidate_cells.size()
 		var pos = candidate_cells[cell_idx]
 
-		# Pick highest-point letter from rack (using fallback scoring)
+		# Pick highest-point letter from rack
 		var best_letter = ""
 		var best_points = -1
-		for letter in core.rack:
-			# Use letter ASCII value as fallback (won't use GameData which isn't available in headless mode)
+		for letter in rack_ltrs:
 			var points = _get_letter_points(letter)
 			if points > best_points:
 				best_points = points

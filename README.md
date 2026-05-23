@@ -102,5 +102,5 @@ shape over the live `Board`/`Rack` nodes.
   `DirAccess.make_dir_absolute()`.
 - **Sim results disagree with the real game**: scoring/progression logic
   is duplicated in `scripts/sim/game_core.gd`. Drift between it and
-  `main.gd`/`run_state.gd` is the most common cause. Re-run the parity
-  tests (TC1–TC8).
+  `main.gd`/`run_state.gd` is the most common cause (including tile modifiers).
+  Re-run the parity tests (TC1–TC14).

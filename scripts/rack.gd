@@ -18,6 +18,7 @@ func refill() -> void:
 		tile.letter = letter
 		add_child(tile)
 		tiles_in_hand.append(tile)
+	_ensure_modifier_in_rack(GameData.MOD_2X)
 
 func _draw_random_letter() -> String:
 	# Build a weighted bag from the standard distribution.
@@ -26,6 +27,23 @@ func _draw_random_letter() -> String:
 		for i in GameData.LETTER_DISTRIBUTION[letter]:
 			bag.append(letter)
 	return bag[randi() % bag.size()]
+
+func _ensure_modifier_in_rack(mod: String) -> void:
+	for t in tiles_in_hand:
+		if t.modifier == mod:
+			return
+	var target_idx := -1
+	var target_pts := 9999
+	for i in tiles_in_hand.size():
+		var t: Tile = tiles_in_hand[i]
+		if t.modifier != GameData.MOD_NONE:
+			continue
+		var pts: int = GameData.LETTER_POINTS.get(t.letter, 0)
+		if pts < target_pts:
+			target_pts = pts
+			target_idx = i
+	if target_idx >= 0:
+		tiles_in_hand[target_idx].set_modifier(mod)
 
 func remove_tile(tile: Tile) -> void:
 	tiles_in_hand.erase(tile)

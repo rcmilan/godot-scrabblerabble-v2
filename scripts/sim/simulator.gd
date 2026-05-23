@@ -25,13 +25,23 @@ func _run_game(strategy, seed: int) -> Dictionary:
 	while not core.is_game_over and turn_log.size() < max_turns:
 		var moves = strategy.pick_moves(core)
 
-		# Place pending
+		# Caller removes tile from rack; place_pending_tile writes board only.
 		var placed_positions: Array = []
 		for move in moves:
 			var letter = move["letter"]
 			var pos = move["pos"]
-			if core.place_pending(letter, pos):
+			var tile_dict: Dictionary = {}
+			for i in core.rack.size():
+				if core.rack[i].letter == letter:
+					tile_dict = core.rack[i]
+					core.rack.remove_at(i)
+					break
+			if tile_dict.is_empty():
+				continue
+			if core.place_pending_tile(tile_dict, pos):
 				placed_positions.append(pos)
+			else:
+				core.rack.append(tile_dict)
 
 		# End turn and get score
 		var score = core.end_turn(placed_positions)
