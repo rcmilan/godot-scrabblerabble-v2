@@ -44,22 +44,29 @@ func _initialize() -> void:
 
 func _parse_args() -> Dictionary:
 	var args = {}
-	var raw_args = OS.get_cmdline_args()
-	var in_script_args = false
+	# In Godot 4.6, use OS.get_cmdline_user_args() for arguments after --
+	var raw_args = OS.get_cmdline_user_args()
 
-	for arg in raw_args:
-		if arg == "--":
-			in_script_args = true
-			continue
-
-		if not in_script_args:
-			continue
+	var i = 0
+	while i < raw_args.size():
+		var arg = raw_args[i]
 
 		if arg.begins_with("--"):
 			var key_value = arg.trim_prefix("--").split("=")
 			var key = key_value[0]
-			var value = key_value[1] if key_value.size() > 1 else ""
+			var value = ""
+
+			if key_value.size() > 1:
+				# --key=value format
+				value = key_value[1]
+			elif i + 1 < raw_args.size() and not raw_args[i + 1].begins_with("--"):
+				# --key value format
+				value = raw_args[i + 1]
+				i += 1
+
 			args[key] = value
+
+		i += 1
 
 	return args
 

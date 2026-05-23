@@ -5,7 +5,7 @@ extends RefCounted
 
 func write_batch(results: Array) -> Dictionary:
 	var timestamp = _get_timestamp()
-	var output_dir = "user://sim/"
+	var output_dir = "./sim_results/"
 
 	# Create directory if it doesn't exist
 	_ensure_dir(output_dir)
@@ -29,9 +29,9 @@ func _get_timestamp() -> String:
 	]
 
 func _ensure_dir(path: String) -> void:
-	var dir = DirAccess.open(path.get_base_dir())
-	if dir == null:
-		DirAccess.make_absolute_path(path, "user://")
+	var dir_path = path.trim_suffix("/")
+	if not DirAccess.dir_exists_absolute(dir_path):
+		DirAccess.make_dir_absolute(dir_path)
 
 func _write_csv(path: String, results: Array) -> void:
 	var csv_content = "strategy,seed,rounds_completed,final_round,final_round_score,final_target,total_turns_played,total_score_across_rounds,avg_score_per_turn,wasted_turns\n"
