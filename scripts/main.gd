@@ -1,7 +1,6 @@
 # res://scripts/main.gd
 extends Control
 
-const TILES_PER_TURN:       int = 4
 const WORD_BONUS_MULTIPLIER: int = 2
 
 const GLITTER_SCENE   := preload("res://scenes/glitter_emitter.tscn")
@@ -96,8 +95,11 @@ func _place_tile_on_cell(tile: Tile, cell: BoardCell) -> void:
 	add_child(tile)
 	tile.visible = false
 	pending_cells.append(cell)
+	# Re-anchor keyboard focus: removing a tile from the rack HBox can
+	# steal focus away from the board cell, breaking arrow-key navigation.
+	board.focus_cell(cursor)
 	_update_hud()
-	if pending_cells.size() >= TILES_PER_TURN:
+	if pending_cells.size() >= RunState.tiles_per_turn:
 		_on_end_turn_pressed()
 
 # ---------- End of turn ----------
@@ -105,6 +107,7 @@ func _on_end_turn_pressed() -> void:
 	if pending_cells.is_empty():
 		return
 	var turn_score := _calculate_turn_score()
+	print("[Turn] placed=%d  scored=%d" % [pending_cells.size(), turn_score])
 	if turn_score > 0:
 		for c: BoardCell in pending_cells:
 			_spawn_glitter_at(c)
@@ -114,6 +117,7 @@ func _on_end_turn_pressed() -> void:
 	RunState.register_turn_score(turn_score)
 	if not RunState.is_game_over:
 		rack.refill()
+		board.focus_cell(cursor)
 	_update_hud()
 
 func _spawn_glitter_at(cell: BoardCell) -> void:
@@ -167,17 +171,20 @@ func _extract_word_in_direction(cell: BoardCell, dir: Vector2i) -> Dictionary:
 	return {"text": text, "start": start_pos}
 
 func _update_hud() -> void:
-	score_label.text      = "Score: %d (R%d goal %d)" % [RunState.total_score, RunState.current_round, RunState.target_score]
-	tiles_left_label.text = "Round: %d / %d | Turns: %d" % [RunState.round_score, RunState.target_score, RunState.turns_left]
+	score_label.text      = "Total: %d  |  Round %d" % [RunState.total_score, RunState.current_round]
+	tiles_left_label.text = "Progress: %d / %d  |  Turns left: %d  |  Tiles/turn: %d" % [
+		RunState.round_score, RunState.target_score,
+		RunState.turns_left, RunState.tiles_per_turn]
 
 func _on_round_won(_round_num: int, _round_score: int, _target: int) -> void:
+	pending_cells.clear()
+	board.clear_all()
 	var emitter: GPUParticles2D = GLITTER_SCENE.instantiate()
 	add_child(emitter)
 	emitter.global_position = board.global_position + board.size * 0.5
 	_update_hud()
 
 func _on_game_over(final_round: int, final_score: int) -> void:
-	print("RunState.history: ", RunState.history)
 	_update_hud()
 	var dialog: Panel = GAME_OVER_SCENE.instantiate()
 	dialog.setup(final_round, final_score)
@@ -185,3 +192,7 @@ func _on_game_over(final_round: int, final_score: int) -> void:
 	layer.layer = 200
 	add_child(layer)
 	layer.add_child(dialog)
+	# Center the dialog. custom_minimum_size is reliable at this point;
+	# size is still (0,0) before the first layout pass.
+	var vp_size := get_viewport().get_visible_rect().size
+	dialog.position = (vp_size - dialog.custom_minimum_size) / 2.0
