@@ -28,7 +28,6 @@ func _ready() -> void:
 
 	# Set initial focus
 	_set_icon_focused(0)
-	get_tree().root.gui_focus_changed.connect(_on_gui_focus_changed)
 
 func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed:
@@ -59,10 +58,20 @@ func _move_focus_backward() -> void:
 
 func _set_icon_focused(index: int) -> void:
 	_focused_icon_index = index
-	_icons[index].grab_focus()
+	# Remove focus highlight from all icons
+	for icon in _icons:
+		if icon.is_visible_in_tree():
+			icon.modulate = Color.WHITE
+	# Add focus highlight to current icon
+	var focused_icon = _icons[index]
+	if focused_icon.is_visible_in_tree():
+		focused_icon.modulate = Color.YELLOW
+		focused_icon.grab_focus()
 
 func _activate_focused_icon() -> void:
 	var icon = _icons[_focused_icon_index]
+	if not icon.is_visible_in_tree():
+		return
 	if icon.icon_id == &"user":
 		# User folder is drop-only, no activation via keyboard
 		return
@@ -72,25 +81,23 @@ func _activate_focused_icon() -> void:
 func _resume_game() -> void:
 	resume_requested.emit()
 
-func _on_gui_focus_changed(_old: Control, _new: Control) -> void:
-	# Update focused icon index when focus changes via mouse/other means
-	for i in _icons.size():
-		if _icons[i].has_focus():
-			_focused_icon_index = i
-
 func _on_mod2x_activated(icon_id: StringName) -> void:
 	if icon_id == &"mod_2x":
 		RunState.add_to_build(GameData.MOD_2X)
-		$Mod2xIcon._flash_feedback()
-		# Hide the icon after it's been picked
+		# Flash feedback and then hide
+		await $Mod2xIcon._flash_feedback()
 		$Mod2xIcon.visible = false
+		# Move focus to next available icon
+		_move_focus_forward()
 
 func _on_mod2x_dropped() -> void:
 	# Called when mod-2x is dropped onto the user folder
 	RunState.add_to_build(GameData.MOD_2X)
-	$Mod2xIcon._flash_feedback()
-	# Hide the icon after it's been picked
+	# Flash feedback and then hide
+	await $Mod2xIcon._flash_feedback()
 	$Mod2xIcon.visible = false
+	# Move focus to next available icon
+	_move_focus_forward()
 
 func _on_scrabblerabble_activated(icon_id: StringName) -> void:
 	if icon_id == &"scrabblerabble":
