@@ -280,16 +280,16 @@ func _on_transition_finished() -> void:
 	board.focus_cell(cursor)
 
 func _open_shop() -> void:
-	# Autoplay safety: strategies don't make shop choices, so the desktop
-	# would deadlock _run_autoplay's is_transitioning poll. Skip it.
-	if _autoplay_active:
-		print("[Shop] autoplay active — skipping shop, no picks added")
-		RunState.is_transitioning = false
-		board.focus_cell(cursor)
-		return
 	var desktop := DESKTOP_SCENE.instantiate()
 	add_child(desktop)
 	desktop.resume_requested.connect(_on_shop_closed.bind(desktop))
+
+	# If autoplay is active, automatically pick a modifier after a brief delay
+	if _autoplay_active:
+		await get_tree().create_timer(1.0).timeout  # Show shop for 1 second
+		if is_instance_valid(desktop):
+			# Automatically activate mod-2x icon
+			desktop._on_mod2x_activated(&"mod_2x")
 
 func _on_shop_closed(desktop: Node) -> void:
 	desktop.queue_free()
