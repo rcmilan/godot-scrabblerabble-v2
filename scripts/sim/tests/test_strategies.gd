@@ -114,6 +114,7 @@ func test_strategies_tolerate_new_rack_shape() -> bool:
 		load("res://scripts/sim/strategies/greedy_strategy.gd"),
 		load("res://scripts/sim/strategies/word_search_strategy.gd"),
 		load("res://scripts/sim/strategies/diagonal_cluster_strategy.gd"),
+		load("res://scripts/sim/strategies/corner_spiral_strategy.gd"),
 	]
 	for script in strategy_scripts:
 		var strategy = script.new()

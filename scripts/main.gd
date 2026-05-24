@@ -13,6 +13,7 @@ const GREEDY_STRATEGY           := preload("res://scripts/sim/strategies/greedy_
 const RANDOM_STRATEGY           := preload("res://scripts/sim/strategies/random_strategy.gd")
 const DIAGONAL_CLUSTER_STRATEGY := preload("res://scripts/sim/strategies/diagonal_cluster_strategy.gd")
 const HYBRID_WORD_DIAGONAL_STRATEGY := preload("res://scripts/sim/strategies/hybrid_word_diagonal_strategy.gd")
+const CORNER_SPIRAL_STRATEGY := preload("res://scripts/sim/strategies/corner_spiral_strategy.gd")
 
 const AUTOPLAY_STEP_MS: int = 200
 
@@ -351,6 +352,7 @@ func _build_strategy(name: String):
 		"random":           return RANDOM_STRATEGY.new()
 		"diagonal_cluster": return DIAGONAL_CLUSTER_STRATEGY.new()
 		"hybrid_word_diagonal": return HYBRID_WORD_DIAGONAL_STRATEGY.new()
+		"corner_spiral":    return CORNER_SPIRAL_STRATEGY.new()
 		_:                  return null
 
 func _run_autoplay(strategy) -> void:
