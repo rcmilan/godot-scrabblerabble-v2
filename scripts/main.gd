@@ -284,12 +284,16 @@ func _open_shop() -> void:
 	add_child(desktop)
 	desktop.resume_requested.connect(_on_shop_closed.bind(desktop))
 
-	# If autoplay is active, automatically pick a modifier after a brief delay
+	# If autoplay is active, automatically pick a modifier and resume
 	if _autoplay_active:
 		await get_tree().create_timer(1.0).timeout  # Show shop for 1 second
 		if is_instance_valid(desktop):
 			# Automatically activate mod-2x icon
-			desktop._on_mod2x_activated(&"mod_2x")
+			await desktop._on_mod2x_activated(&"mod_2x")
+			# Wait for flash feedback to complete, then click scrabblerabble to resume
+			await get_tree().create_timer(0.2).timeout
+			if is_instance_valid(desktop):
+				desktop._on_scrabblerabble_activated(&"scrabblerabble")
 
 func _on_shop_closed(desktop: Node) -> void:
 	desktop.queue_free()
