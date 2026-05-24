@@ -3,132 +3,150 @@ extends Control
 
 signal activated(icon_id: StringName)
 
-const DOUBLE_CLICK_MS: int = 400
+const DOUBLE_CLICK_MS:   int   = 400
 const DRAG_THRESHOLD_PX: float = 6.0
-const TILE_SCENE: PackedScene = preload("res://scenes/tile.tscn")
 
-@export var icon_id: StringName = &""
-@export var requires_double_click: bool = false
+const BODY_SIZE:    Vector2 = Vector2(48, 48)
+const BODY_TOP_PAD: float   = 4.0
+const CAPTION_H:    float   = 18.0
+const TOTAL_SIZE:   Vector2 = Vector2(80, 74)
 
-var _last_click_ms: int = -1
-var _press_pos: Vector2 = Vector2.ZERO
-var _pressed: bool = false
-var _dragging: bool = false
+# Tile / modifier palette (mirrors tile.gd so the shop visual reads as the
+# same kind of object the player will get on their rack).
+const C_OUTER_LIGHT := Color("#FFFFFF")
+const C_INNER_LIGHT := Color("#DFDFDF")
+const C_INNER_DARK  := Color("#808080")
+const C_OUTER_DARK  := Color("#0A0A0A")
+const C_MOD_GRADIENT_LEFT  := Color(0.0,        0.0,         0.5019, 1.0)
+const C_MOD_GRADIENT_RIGHT := Color(16.0/255.0, 132.0/255.0, 208.0/255.0, 1.0)
+
+const C_CHROME       := Color(0.7529, 0.7529, 0.7529, 1.0)
+const C_TITLEBAR     := Color(0.0,    0.0,    0.5019, 1.0)
+const C_FOLDER_BODY  := Color(1.0,    0.8392, 0.2,    1.0)
+const C_FOLDER_EDGE  := Color(0.2,    0.1,    0.0,    1.0)
+const C_FOLDER_SHADE := Color(0.7,    0.5568, 0.0,    1.0)
+const C_LABEL        := Color(1.0, 1.0, 1.0, 1.0)
+const C_LABEL_SHADOW := Color(0.0, 0.0, 0.0, 0.85)
+const C_FOCUS_BORDER := Color(1.0, 1.0, 0.4, 1.0)
+
+@export var icon_id:              StringName = &""
+@export var requires_double_click: bool      = false
+
+var focused_highlight: bool = false
+
+var _last_click_ms: int     = -1
+var _press_pos:     Vector2 = Vector2.ZERO
+var _pressed:       bool    = false
+var _dragging:      bool    = false
+
+@onready var _caption: Label = $Caption
 
 func _ready() -> void:
-	mouse_filter = MOUSE_FILTER_STOP
-	custom_minimum_size = Vector2(80, 100)
-	focus_mode = FOCUS_ALL  # Allow keyboard focus
-	_setup_visual()
+	mouse_filter        = MOUSE_FILTER_STOP
+	custom_minimum_size = TOTAL_SIZE
+	focus_mode          = FOCUS_ALL
+	_caption.text = _caption_text()
+	queue_redraw()
 
-func _setup_visual() -> void:
-	# For mod_2x, create a tile visual; for others, create a simple icon
+func _caption_text() -> String:
 	match icon_id:
-		&"mod_2x":
-			_setup_mod2x_visual()
-		&"user":
-			_setup_user_visual()
-		&"scrabblerabble":
-			_setup_scrabblerabble_visual()
+		&"mod_2x":         return "mod-2x.exe"
+		&"user":           return "user"
+		&"scrabblerabble": return "scrabblerabble.exe"
+		_:                 return String(icon_id)
 
-func _setup_mod2x_visual() -> void:
-	# Create a tile visual with a random letter and MOD_2X modifier
-	var rng := RandomNumberGenerator.new()
-	rng.seed = hash(RunState.current_round)
-	var letters := GameData.LETTER_DISTRIBUTION.keys()
-	var random_letter: String = letters[rng.randi() % letters.size()]
+# ---------- Drawing ----------
 
-	var tile := TILE_SCENE.instantiate() as Tile
-	tile.letter = random_letter
-	tile.set_modifier(GameData.MOD_2X)
-	tile.custom_minimum_size = Vector2(48, 48)
-	tile.anchor_left = 0.5
-	tile.anchor_top = 0.0
-	tile.offset_left = -24
-	tile.offset_top = 0
-	tile.mouse_filter = MOUSE_FILTER_PASS  # Pass input to parent
-	add_child(tile)
+func _draw() -> void:
+	var body_rect := _body_rect()
+	match icon_id:
+		&"mod_2x":         _draw_mod2x_body(body_rect)
+		&"user":           _draw_folder_body(body_rect)
+		&"scrabblerabble": _draw_window_body(body_rect)
+	if focused_highlight:
+		# Outline the full icon (body + caption) so the cursor reads as
+		# selecting the whole desktop icon, Win95-style.
+		draw_rect(Rect2(Vector2.ZERO, size), C_FOCUS_BORDER, false, 1.0)
 
-	# Add label below the icon
-	var label := Label.new()
-	label.text = "mod-2x.exe"
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.anchor_left = 0.0
-	label.anchor_top = 0.6
-	label.anchor_right = 1.0
-	label.anchor_bottom = 1.0
-	label.mouse_filter = MOUSE_FILTER_PASS  # Pass input to parent
-	add_child(label)
+func _body_rect() -> Rect2:
+	var pos := Vector2((TOTAL_SIZE.x - BODY_SIZE.x) * 0.5, BODY_TOP_PAD)
+	return Rect2(pos, BODY_SIZE)
 
-func _setup_user_visual() -> void:
-	# Create a simple folder-like icon
-	var panel := Panel.new()
-	panel.custom_minimum_size = Vector2(48, 48)
-	panel.modulate = Color(0.7, 0.7, 0.7)
-	panel.anchor_left = 0.5
-	panel.anchor_top = 0.0
-	panel.offset_left = -24
-	panel.offset_top = 0
-	panel.mouse_filter = MOUSE_FILTER_PASS  # Pass input to parent
-	add_child(panel)
+func _draw_mod2x_body(rect: Rect2) -> void:
+	# Win98 gradient body + Win95 bevel + "2x" overlay so it reads as
+	# "this is a 2x modifier" without implying a specific letter is granted.
+	_draw_horizontal_gradient(Rect2(rect.position + Vector2(1, 1),
+		rect.size - Vector2(2, 2)), C_MOD_GRADIENT_LEFT, C_MOD_GRADIENT_RIGHT)
+	_draw_win95_bevel(rect)
+	var font := get_theme_default_font()
+	if font:
+		var label := "2x"
+		var size_px := 22
+		var text_size := font.get_string_size(label, HORIZONTAL_ALIGNMENT_CENTER, -1, size_px)
+		var center := rect.position + rect.size * 0.5
+		var baseline := center + Vector2(-text_size.x * 0.5,
+			font.get_ascent(size_px) - text_size.y * 0.5)
+		draw_string(font, baseline, label, HORIZONTAL_ALIGNMENT_LEFT, -1, size_px, C_LABEL)
 
-	var label_icon := Label.new()
-	label_icon.text = "📁"
-	label_icon.add_theme_font_size_override("font_size", 24)
-	label_icon.anchor_left = 0.0
-	label_icon.anchor_top = 0.0
-	label_icon.anchor_right = 1.0
-	label_icon.anchor_bottom = 1.0
-	label_icon.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label_icon.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label_icon.mouse_filter = MOUSE_FILTER_PASS  # Pass input to parent
-	panel.add_child(label_icon)
+func _draw_folder_body(rect: Rect2) -> void:
+	# Classic manila folder: a tab on top, a body below, dark edges.
+	var tab_w := rect.size.x * 0.45
+	var tab_h := rect.size.y * 0.22
+	var tab := Rect2(rect.position + Vector2(2, 4), Vector2(tab_w, tab_h))
+	var body := Rect2(rect.position + Vector2(0, tab_h + 2),
+		Vector2(rect.size.x, rect.size.y - tab_h - 4))
+	draw_rect(tab, C_FOLDER_BODY, true)
+	draw_rect(tab, C_FOLDER_EDGE, false, 1.0)
+	draw_rect(body, C_FOLDER_BODY, true)
+	# bottom-right shading line for a tiny bit of depth
+	draw_line(body.position + Vector2(0, body.size.y - 1),
+		body.position + body.size - Vector2(1, 1), C_FOLDER_SHADE)
+	draw_line(body.position + body.size - Vector2(1, 1),
+		body.position + Vector2(body.size.x - 1, 0), C_FOLDER_SHADE)
+	draw_rect(body, C_FOLDER_EDGE, false, 1.0)
 
-	# Add label below the icon
-	var label := Label.new()
-	label.text = "user"
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.anchor_left = 0.0
-	label.anchor_top = 0.6
-	label.anchor_right = 1.0
-	label.anchor_bottom = 1.0
-	label.mouse_filter = MOUSE_FILTER_PASS  # Pass input to parent
-	add_child(label)
+func _draw_window_body(rect: Rect2) -> void:
+	# Mini Win95 window: chrome rectangle with a navy titlebar, raised bevel.
+	draw_rect(rect, C_CHROME, true)
+	var titlebar := Rect2(rect.position + Vector2(2, 2),
+		Vector2(rect.size.x - 4, 8))
+	draw_rect(titlebar, C_TITLEBAR, true)
+	# Two faint horizontal lines suggesting a content area.
+	var line_y := titlebar.position.y + titlebar.size.y + 4
+	for i in 3:
+		draw_line(Vector2(rect.position.x + 4, line_y + i * 4),
+			Vector2(rect.position.x + rect.size.x - 5, line_y + i * 4),
+			C_INNER_DARK)
+	_draw_win95_bevel(rect)
 
-func _setup_scrabblerabble_visual() -> void:
-	# Create a simple game icon
-	var panel := Panel.new()
-	panel.custom_minimum_size = Vector2(48, 48)
-	panel.modulate = Color(0.4, 0.4, 0.8)
-	panel.anchor_left = 0.5
-	panel.anchor_top = 0.0
-	panel.offset_left = -24
-	panel.offset_top = 0
-	panel.mouse_filter = MOUSE_FILTER_PASS  # Pass input to parent
-	add_child(panel)
+func _draw_win95_bevel(rect: Rect2) -> void:
+	var x := rect.position.x
+	var y := rect.position.y
+	var w := rect.size.x
+	var h := rect.size.y
+	draw_line(Vector2(x,         y),         Vector2(x + w - 1, y),         C_OUTER_LIGHT)
+	draw_line(Vector2(x,         y),         Vector2(x,         y + h - 1), C_OUTER_LIGHT)
+	draw_line(Vector2(x + 1,     y + 1),     Vector2(x + w - 2, y + 1),     C_INNER_LIGHT)
+	draw_line(Vector2(x + 1,     y + 1),     Vector2(x + 1,     y + h - 2), C_INNER_LIGHT)
+	draw_line(Vector2(x + w - 2, y + 1),     Vector2(x + w - 2, y + h - 2), C_INNER_DARK)
+	draw_line(Vector2(x + 1,     y + h - 2), Vector2(x + w - 2, y + h - 2), C_INNER_DARK)
+	draw_line(Vector2(x + w - 1, y),         Vector2(x + w - 1, y + h - 1), C_OUTER_DARK)
+	draw_line(Vector2(x,         y + h - 1), Vector2(x + w - 1, y + h - 1), C_OUTER_DARK)
 
-	var label_icon := Label.new()
-	label_icon.text = "🎮"
-	label_icon.add_theme_font_size_override("font_size", 24)
-	label_icon.anchor_left = 0.0
-	label_icon.anchor_top = 0.0
-	label_icon.anchor_right = 1.0
-	label_icon.anchor_bottom = 1.0
-	label_icon.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label_icon.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label_icon.mouse_filter = MOUSE_FILTER_PASS  # Pass input to parent
-	panel.add_child(label_icon)
+func _draw_horizontal_gradient(rect: Rect2, c0: Color, c1: Color) -> void:
+	var steps := int(rect.size.x)
+	for i in steps:
+		var t := float(i) / float(max(1, steps - 1))
+		var c := c0.lerp(c1, t)
+		draw_rect(Rect2(rect.position.x + i, rect.position.y, 1.0, rect.size.y), c)
 
-	# Add label below the icon
-	var label := Label.new()
-	label.text = "scrabblerabble.exe"
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.anchor_left = 0.0
-	label.anchor_top = 0.6
-	label.anchor_right = 1.0
-	label.anchor_bottom = 1.0
-	label.mouse_filter = MOUSE_FILTER_PASS  # Pass input to parent
-	add_child(label)
+func set_focused_highlight(value: bool) -> void:
+	if focused_highlight == value:
+		return
+	focused_highlight = value
+	queue_redraw()
+
+# ---------- Input ----------
 
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
@@ -158,42 +176,37 @@ func _handle_click() -> void:
 		_last_click_ms = now
 
 func _start_drag() -> void:
-	# Only mod_2x can be dragged; user folder is drop-only
 	if icon_id != &"mod_2x":
 		return
-
-	var preview := Control.new()
-	var ghost := Panel.new()
-	ghost.custom_minimum_size = Vector2(48, 48)
-	ghost.modulate = Color(1, 1, 1, 0.7)
-	preview.add_child(ghost)
-	force_drag({"icon_id": "mod_2x"}, preview)
+	var preview_root := Control.new()
+	var ghost: Control = duplicate(DUPLICATE_USE_INSTANTIATION) as Control
+	# The duplicate's caption stays for honesty about what's being dragged,
+	# but knock down its caption visibility a notch via modulate at the root.
+	ghost.modulate = Color(1, 1, 1, 0.8)
+	ghost.position = -TOTAL_SIZE * 0.5
+	preview_root.add_child(ghost)
+	force_drag({"icon_id": "mod_2x"}, preview_root)
 
 func _can_drop_data(_pos: Vector2, data: Variant) -> bool:
-	# Only user folder accepts drops
 	if icon_id != &"user":
 		return false
 	return typeof(data) == TYPE_DICTIONARY and data.get("icon_id") == "mod_2x"
 
 func _drop_data(_pos: Vector2, _data: Variant) -> void:
-	# Only user folder processes drops
 	if icon_id != &"user":
 		return
-	# Notify parent desktop that mod_2x was dropped
-	var parent = get_parent()
-	if parent and parent.has_method("_on_mod2x_dropped"):
-		parent._on_mod2x_dropped()
+	var parent := get_parent()
+	if parent and parent.has_method("on_mod2x_picked"):
+		parent.on_mod2x_picked()
 
-func _flash_feedback() -> void:
-	# Flash the icon briefly (white for 100ms, then back to normal)
+func flash_feedback() -> void:
 	var original_modulate := modulate
-	var original_mouse_filter := mouse_filter
-	# Disable input during flash to prevent multiple clicks
+	var original_filter   := mouse_filter
 	mouse_filter = MOUSE_FILTER_IGNORE
 	modulate = Color.WHITE
 	await get_tree().create_timer(0.1).timeout
 	modulate = original_modulate
-	mouse_filter = original_mouse_filter
+	mouse_filter = original_filter
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_DRAG_END:

@@ -289,17 +289,15 @@ func _open_shop() -> void:
 	if _autoplay_active:
 		await get_tree().create_timer(1.0).timeout  # Show shop for 1 second
 		if is_instance_valid(desktop):
-			# Automatically activate mod-2x icon
-			await desktop._on_mod2x_activated(&"mod_2x")
-			# Wait for flash feedback to complete
+			await desktop.on_mod2x_picked()
 			await get_tree().create_timer(0.2).timeout
 			if is_instance_valid(desktop):
-				# Highlight scrabblerabble icon to show intent
+				# Highlight scrabblerabble icon to show intent.
+				# Index 2 is ScrabblerabbleIcon in desktop.gd's _icons array.
 				desktop._set_icon_focused(2)
-				# Pause on resume button so player sees the simulation knows what it's doing
 				await get_tree().create_timer(0.5).timeout
 				if is_instance_valid(desktop):
-					desktop._on_scrabblerabble_activated(&"scrabblerabble")
+					desktop.resume_requested.emit()
 
 func _on_shop_closed(desktop: Node) -> void:
 	desktop.queue_free()
