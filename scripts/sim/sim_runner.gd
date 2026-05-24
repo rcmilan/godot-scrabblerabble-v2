@@ -5,10 +5,13 @@ extends SceneTree
 
 const Simulator = preload("res://scripts/sim/simulator.gd")
 const ResultsWriter = preload("res://scripts/sim/results_writer.gd")
+const GameCore = preload("res://scripts/sim/game_core.gd")
 const RandomStrategy = preload("res://scripts/sim/strategies/random_strategy.gd")
 const GreedyStrategy = preload("res://scripts/sim/strategies/greedy_strategy.gd")
 const WordSearchStrategy = preload("res://scripts/sim/strategies/word_search_strategy.gd")
 const DiagonalClusterStrategy = preload("res://scripts/sim/strategies/diagonal_cluster_strategy.gd")
+const HybridWordDiagonalStrategy = preload("res://scripts/sim/strategies/hybrid_word_diagonal_strategy.gd")
+const CornerSpiralStrategy = preload("res://scripts/sim/strategies/corner_spiral_strategy.gd")
 
 func _initialize() -> void:
 	var args = _parse_args()
@@ -17,19 +20,27 @@ func _initialize() -> void:
 	var strategies_str = args.get("strategies", "random")
 	var base_seed = int(args.get("seed", "42"))
 	var output_dir = args.get("out", "user://sim/")
+	var build_str = args.get("build", "")
+	var shop_strategy = args.get("shop-strategy", "default")
 
 	var strategies = _build_strategies(strategies_str)
 	if strategies.is_empty():
 		print("ERROR: No strategies specified")
 		quit(1)
 
+	var modifier_build = _parse_build(build_str)
+
 	print("Running simulation...")
 	print("  Strategies: %s" % strategies_str)
 	print("  Runs per strategy: %d" % runs_per_strategy)
 	print("  Base seed: %d" % base_seed)
+	if not modifier_build.is_empty():
+		print("  Build: %s" % _build_to_string(modifier_build))
+	if shop_strategy != "default":
+		print("  Shop strategy: %s" % shop_strategy)
 
 	var sim = Simulator.new()
-	var results = sim.run_batch(strategies, runs_per_strategy, base_seed)
+	var results = sim.run_batch(strategies, runs_per_strategy, base_seed, modifier_build, shop_strategy)
 
 	var writer = ResultsWriter.new()
 	var file_info = writer.write_batch(results)
@@ -85,6 +96,10 @@ func _build_strategies(strategies_str: String) -> Array:
 			strategies.append(WordSearchStrategy.new())
 		elif name == "diagonal_cluster":
 			strategies.append(DiagonalClusterStrategy.new())
+		elif name == "hybrid_word_diagonal":
+			strategies.append(HybridWordDiagonalStrategy.new())
+		elif name == "corner_spiral":
+			strategies.append(CornerSpiralStrategy.new())
 		else:
 			print("WARNING: Unknown strategy '%s'" % name)
 
@@ -133,3 +148,39 @@ func _print_summary(results: Array, strategies: Array) -> void:
 		print("%-15s %10.1f %10d %10d %10.1f" % [
 			strat_name, mean_rounds, median_rounds, p90_rounds, mean_score
 		])
+
+func _parse_build(build_str: String) -> Dictionary:
+	var result: Dictionary = {}
+	if build_str.is_empty():
+		return result
+
+	# Parse comma-separated key:count pairs
+	var pairs = build_str.split(",")
+	for pair in pairs:
+		pair = pair.strip_edges()
+		var parts = pair.split(":")
+		if parts.size() != 2:
+			print("[Sim] invalid build format: %s" % pair)
+			continue
+
+		var cli_key = parts[0].strip_edges()
+		var count_str = parts[1].strip_edges()
+		var count = int(count_str)
+
+		# Map CLI key to GameCore constant
+		var mod_const = ""
+		match cli_key:
+			"mod_2x": mod_const = GameCore.MOD_2X
+			"mod_3x": print("[Sim] unknown build mod: %s" % cli_key); continue
+			_: print("[Sim] unknown build mod: %s" % cli_key); continue
+
+		if mod_const != "":
+			result[mod_const] = count
+
+	return result
+
+func _build_to_string(build: Dictionary) -> String:
+	var parts: Array = []
+	for mod in build.keys():
+		parts.append("%s:%d" % [mod, build[mod]])
+	return "{%s}" % ", ".join(parts)

@@ -12,6 +12,7 @@ const INITIAL_TARGET_SCORE:   int = 20
 const WORD_BONUS_MULTIPLIER:  int = 2
 const BOARD_SIZE:             int = 8
 const RACK_SIZE:              int = 7
+const SHOP_EVERY_N_ROUNDS:    int = 3
 
 const MOD_NONE: String = ""
 const MOD_2X:   String = "2x"
@@ -76,11 +77,19 @@ var turns_left:     int   = TURNS_PER_ROUND
 var tiles_per_turn: int   = INITIAL_TILES_PER_TURN
 var is_game_over:   bool  = false
 
+# Modifier build state.
+var modifier_build: Dictionary = {}
+
+# Shop interval automation.
+var shop_strategy: String = "default"  # "default", "always_pick", "never_pick"
+
 # Target curve state.
 var _t_prev: float = 0.0
 var _t_curr: float = float(INITIAL_TARGET_SCORE)
 
-func _init(seed: int) -> void:
+func _init(seed: int, build: Dictionary = {}, shop_str: String = "default") -> void:
+	modifier_build = build.duplicate()
+	shop_strategy = shop_str
 	rng = RandomNumberGenerator.new()
 	rng.seed = seed
 	_init_board()
@@ -123,26 +132,43 @@ func rack_letters() -> Array:
 func refill_rack() -> void:
 	while rack.size() < RACK_SIZE:
 		rack.append(draw_tile())
-	_ensure_modifier_in_rack(MOD_2X)
+	for mod in modifier_build.keys():
+		_ensure_modifier_count_in_rack(mod, modifier_build[mod])
 
-func _ensure_modifier_in_rack(mod: String) -> void:
+func _ensure_modifier_count_in_rack(mod: String, required_count: int) -> void:
+	# 1. Count tiles already carrying this modifier.
+	var have := 0
 	for t in rack:
 		if t.modifier == mod:
-			return
-	# No tile with this modifier. Promote the lowest-value unmodified tile.
-	# Deterministic (lowest-value-wins, first on tie) to keep sim reproducible.
-	var target_idx := -1
-	var target_pts := 9999
-	for i in rack.size():
-		var t = rack[i]
-		if t.modifier != MOD_NONE:
-			continue
-		var pts: int = LETTER_POINTS.get(t.letter, 0)
-		if pts < target_pts:
-			target_pts = pts
-			target_idx = i
-	if target_idx >= 0:
+			have += 1
+	# 2. Promote unmodified tiles until we hit required_count.
+	#    Binary rule: a tile with ANY modifier is ineligible — never stack.
+	while have < required_count:
+		var target_idx := -1
+		var target_pts := 9999
+		for i in rack.size():
+			var t = rack[i]
+			if t.modifier != MOD_NONE:
+				continue
+			var pts: int = LETTER_POINTS.get(t.letter, 0)
+			if pts < target_pts:
+				target_pts = pts
+				target_idx = i
+		if target_idx < 0:
+			return  # no unmodified tiles left; top out silently
 		rack[target_idx].modifier = mod
+		have += 1
+
+func auto_pick_modifiers() -> void:
+	# Automatically pick modifiers at shop intervals based on shop_strategy.
+	if shop_strategy == "never_pick":
+		return
+	# Check if shop is due at current_round (after _advance_round)
+	if current_round > 1 and (current_round - 1) % SHOP_EVERY_N_ROUNDS == 0:
+		# Always pick MOD_2X: 1 at each shop interval
+		if not modifier_build.has(MOD_2X):
+			modifier_build[MOD_2X] = 0
+		modifier_build[MOD_2X] += 1
 
 func is_cell_empty(pos: Vector2i) -> bool:
 	if pos.x < 0 or pos.x >= BOARD_SIZE or pos.y < 0 or pos.y >= BOARD_SIZE:
@@ -175,6 +201,7 @@ func end_turn(pending_positions: Array) -> int:
 	turns_left -= 1
 	if round_score >= target_score:
 		_advance_round()
+		auto_pick_modifiers()
 	elif turns_left <= 0:
 		is_game_over = true
 	refill_rack()
@@ -196,18 +223,61 @@ func _calculate_turn_score(pending_positions: Array) -> int:
 
 	var total := 0
 	for w in words_found:
-		var word_points := 0
-		for i in (w.text as String).length():
-			var ch: String = (w.text as String)[i]
-			var cell_pos: Vector2i = w.cells[i]
-			var letter_pts: int = LETTER_POINTS.get(ch.to_upper(), 0)
-			if board_modifiers[cell_pos.x][cell_pos.y] == MOD_2X:
-				letter_pts *= 2
-			word_points += letter_pts
 		if is_valid_word(w.text):
-			word_points *= WORD_BONUS_MULTIPLIER
-		total += word_points
+			# Full word is valid - score it with word bonus
+			var word_points := _score_word_sim(w)
+			total += word_points
+		else:
+			# Full word is invalid - try to find valid sub-words
+			var sub_words_found := false
+			# Try all possible sub-words (length 2+)
+			for start_idx in range(w.text.length() - 1):
+				for end_idx in range(start_idx + 2, w.text.length() + 1):
+					var sub_word: String = w.text.substr(start_idx, end_idx - start_idx)
+					if is_valid_word(sub_word):
+						sub_words_found = true
+						# Calculate score for sub-word
+						var sub_points := 0
+						for i in range(start_idx, end_idx):
+							var ch: String = w.text[i]
+							var cell_pos: Vector2i = w.cells[i]
+							var letter_pts: int = LETTER_POINTS.get(ch.to_upper(), 0)
+							if board_modifiers[cell_pos.x][cell_pos.y] == MOD_2X:
+								letter_pts *= 2
+							sub_points += letter_pts
+						# Apply word bonus if at least one new tile in sub-word
+						var has_new_tile := false
+						for i in range(start_idx, end_idx):
+							if w.cells[i] in pending_positions:
+								has_new_tile = true
+								break
+						if has_new_tile:
+							sub_points *= WORD_BONUS_MULTIPLIER
+						total += sub_points
+			# If no valid sub-words, score just the letter values (no word bonus)
+			if not sub_words_found:
+				var letter_points := 0
+				for i in (w.text as String).length():
+					var ch: String = w.text[i]
+					var cell_pos: Vector2i = w.cells[i]
+					var letter_pts: int = LETTER_POINTS.get(ch.to_upper(), 0)
+					if board_modifiers[cell_pos.x][cell_pos.y] == MOD_2X:
+						letter_pts *= 2
+					letter_points += letter_pts
+				total += letter_points
 	return total
+
+func _score_word_sim(w: Dictionary) -> int:
+	var word_points := 0
+	for i in (w.text as String).length():
+		var ch: String = (w.text as String)[i]
+		var cell_pos: Vector2i = w.cells[i]
+		var letter_pts: int = LETTER_POINTS.get(ch.to_upper(), 0)
+		if board_modifiers[cell_pos.x][cell_pos.y] == MOD_2X:
+			letter_pts *= 2
+		word_points += letter_pts
+	word_points *= WORD_BONUS_MULTIPLIER
+	return word_points
 
 func _extract_word_in_direction(pos: Vector2i, dir: Vector2i) -> Dictionary:
 	var start_pos := pos

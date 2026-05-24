@@ -6,11 +6,14 @@ const WORD_BONUS_MULTIPLIER: int = 2
 const GLITTER_SCENE          := preload("res://scenes/glitter_emitter.tscn")
 const GAME_OVER_SCENE        := preload("res://scenes/game_over_dialog.tscn")
 const ROUND_TRANSITION_SCENE := preload("res://scenes/round_transition.tscn")
+const DESKTOP_SCENE          := preload("res://scenes/desktop.tscn")
 
 const WORD_SEARCH_STRATEGY      := preload("res://scripts/sim/strategies/word_search_strategy.gd")
 const GREEDY_STRATEGY           := preload("res://scripts/sim/strategies/greedy_strategy.gd")
 const RANDOM_STRATEGY           := preload("res://scripts/sim/strategies/random_strategy.gd")
 const DIAGONAL_CLUSTER_STRATEGY := preload("res://scripts/sim/strategies/diagonal_cluster_strategy.gd")
+const HYBRID_WORD_DIAGONAL_STRATEGY := preload("res://scripts/sim/strategies/hybrid_word_diagonal_strategy.gd")
+const CORNER_SPIRAL_STRATEGY := preload("res://scripts/sim/strategies/corner_spiral_strategy.gd")
 
 const AUTOPLAY_STEP_MS: int = 200
 
@@ -155,24 +158,81 @@ func _calculate_turn_score() -> int:
 
 	var total := 0
 	for w in words_found:
-		var word_points := 0
-		var mods_parts: Array = []
-		for i in (w.text as String).length():
-			var ch: String = (w.text as String)[i]
-			var cell: BoardCell = w.cells[i]
-			var letter_pts: int = GameData.score_for_letter(ch)
-			if cell.get_modifier() == GameData.MOD_2X:
-				letter_pts *= 2
-				mods_parts.append("2x@%d" % i)
-			word_points += letter_pts
 		if GameData.is_valid_word(w.text):
-			word_points *= WORD_BONUS_MULTIPLIER
-			var mods_str := ", ".join(mods_parts) if mods_parts.size() > 0 else "none"
+			# Full word is valid - score it with word bonus
+			var word_points := _score_word(w)
+			var mods_str := _get_modifiers_str(w)
 			print("VALID:   %s = %d points (modifiers: %s)" % [w.text, word_points, mods_str])
+			total += word_points
 		else:
-			print("invalid: %s = %d points (no bonus)" % [w.text, word_points])
-		total += word_points
+			# Full word is invalid - try to find valid sub-words
+			var sub_words_found := false
+			# Try all possible sub-words (length 2+)
+			for start_idx in range(w.text.length() - 1):
+				for end_idx in range(start_idx + 2, w.text.length() + 1):
+					var sub_word: String = w.text.substr(start_idx, end_idx - start_idx)
+					if GameData.is_valid_word(sub_word):
+						sub_words_found = true
+						# Calculate score for sub-word
+						var sub_points := 0
+						var sub_mods: Array = []
+						for i in range(start_idx, end_idx):
+							var ch: String = w.text[i]
+							var cell: BoardCell = w.cells[i]
+							var letter_pts: int = GameData.score_for_letter(ch)
+							if cell.get_modifier() == GameData.MOD_2X:
+								letter_pts *= 2
+								sub_mods.append("2x@%d" % (i - start_idx))
+							sub_points += letter_pts
+						# Apply word bonus if at least one new tile in sub-word
+						var has_new_tile := false
+						for i in range(start_idx, end_idx):
+							if w.cells[i] in pending_cells:
+								has_new_tile = true
+								break
+						if has_new_tile:
+							sub_points *= WORD_BONUS_MULTIPLIER
+						var mods_str := ", ".join(sub_mods) if sub_mods.size() > 0 else "none"
+						print("VALID:   %s = %d points (modifiers: %s)" % [sub_word, sub_points, mods_str])
+						total += sub_points
+			# If no valid sub-words, score just the letter values (no word bonus)
+			if not sub_words_found:
+				var letter_points := 0
+				var mods_parts: Array = []
+				for i in (w.text as String).length():
+					var ch: String = w.text[i]
+					var cell: BoardCell = w.cells[i]
+					var letter_pts: int = GameData.score_for_letter(ch)
+					if cell.get_modifier() == GameData.MOD_2X:
+						letter_pts *= 2
+						mods_parts.append("2x@%d" % i)
+					letter_points += letter_pts
+				var mods_str := ", ".join(mods_parts) if mods_parts.size() > 0 else "none"
+				print("invalid: %s = %d points (modifiers: %s)" % [w.text, letter_points, mods_str])
+				total += letter_points
 	return total
+
+func _score_word(w: Dictionary) -> int:
+	var word_points := 0
+	var mods_parts: Array = []
+	for i in (w.text as String).length():
+		var ch: String = (w.text as String)[i]
+		var cell: BoardCell = w.cells[i]
+		var letter_pts: int = GameData.score_for_letter(ch)
+		if cell.get_modifier() == GameData.MOD_2X:
+			letter_pts *= 2
+			mods_parts.append("2x@%d" % i)
+		word_points += letter_pts
+	word_points *= WORD_BONUS_MULTIPLIER
+	return word_points
+
+func _get_modifiers_str(w: Dictionary) -> String:
+	var mods_parts: Array = []
+	for i in (w.text as String).length():
+		var cell: BoardCell = w.cells[i]
+		if cell.get_modifier() == GameData.MOD_2X:
+			mods_parts.append("2x@%d" % i)
+	return ", ".join(mods_parts) if mods_parts.size() > 0 else "none"
 
 func _extract_word_in_direction(cell: BoardCell, dir: Vector2i) -> Dictionary:
 	var start_pos := cell.grid_pos
@@ -214,8 +274,40 @@ func _on_round_won(round_num: int, _round_score: int, _target: int) -> void:
 	transition.play(round_num)
 
 func _on_transition_finished() -> void:
+	if RunState.is_shop_due():
+		_open_shop()
+		# is_transitioning stays true until the shop closes.
+		return
 	RunState.is_transitioning = false
 	board.focus_cell(cursor)
+
+func _open_shop() -> void:
+	var desktop := DESKTOP_SCENE.instantiate()
+	add_child(desktop)
+	desktop.resume_requested.connect(_on_shop_closed.bind(desktop))
+
+	# If autoplay is active, automatically pick a modifier and resume
+	if _autoplay_active:
+		await get_tree().create_timer(1.0).timeout  # Show shop for 1 second
+		if is_instance_valid(desktop):
+			await desktop.on_mod2x_picked()
+			await get_tree().create_timer(0.2).timeout
+			if is_instance_valid(desktop):
+				# Highlight scrabblerabble icon to show intent.
+				# Index 2 is ScrabblerabbleIcon in desktop.gd's _icons array.
+				desktop._set_icon_focused(2)
+				await get_tree().create_timer(0.5).timeout
+				if is_instance_valid(desktop):
+					desktop.resume_requested.emit()
+
+func _on_shop_closed(desktop: Node) -> void:
+	desktop.queue_free()
+	# The player may have added modifiers to the build; force a refill
+	# so the new guarantees show up immediately, not on the next end-of-turn.
+	rack.refill()
+	RunState.is_transitioning = false
+	board.focus_cell(cursor)
+	_update_hud()
 
 func _on_game_over(final_round: int, final_round_score: int, final_target: int) -> void:
 	_autoplay_active = false
@@ -259,6 +351,8 @@ func _build_strategy(name: String):
 		"greedy":           return GREEDY_STRATEGY.new()
 		"random":           return RANDOM_STRATEGY.new()
 		"diagonal_cluster": return DIAGONAL_CLUSTER_STRATEGY.new()
+		"hybrid_word_diagonal": return HYBRID_WORD_DIAGONAL_STRATEGY.new()
+		"corner_spiral":    return CORNER_SPIRAL_STRATEGY.new()
 		_:                  return null
 
 func _run_autoplay(strategy) -> void:

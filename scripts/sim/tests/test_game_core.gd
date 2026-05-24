@@ -158,9 +158,10 @@ func test_game_over_trigger() -> bool:
 	return true
 
 # TC9 - Modifier guarantee on refill: every fresh rack has exactly one MOD_2X tile.
+# (Build-seeded version: pass {MOD_2X: 1} to guarantee one per refill.)
 func test_modifier_guarantee_on_refill() -> bool:
 	for seed in range(20):
-		var core = GameCore.new(seed)
+		var core = GameCore.new(seed, {GameCore.MOD_2X: 1})
 		var count := 0
 		for t in core.rack:
 			if t.modifier == GameCore.MOD_2X:
@@ -187,7 +188,7 @@ func test_modifier_promotion_picks_lowest() -> bool:
 		{"letter": "V", "modifier": GameCore.MOD_NONE},  # 4 pts
 		{"letter": "Q", "modifier": GameCore.MOD_NONE},  # 10 pts
 	]
-	core._ensure_modifier_in_rack(GameCore.MOD_2X)
+	core._ensure_modifier_count_in_rack(GameCore.MOD_2X, 1)
 	if core.rack[3].modifier != GameCore.MOD_2X:
 		push_error("TC10: expected T (index 3) to be promoted, rack=%s" % str(core.rack))
 		return false
@@ -277,4 +278,115 @@ func test_modifier_survives_lock_and_clears() -> bool:
 			if core.board_modifiers[x][y] != GameCore.MOD_NONE:
 				push_error("TC14: board_modifiers[%d][%d] not MOD_NONE after clear_board()" % [x, y])
 				return false
+	return true
+
+# TSM7 - Empty build yields zero MOD_2X tiles across N refills.
+func test_empty_build_no_modifiers() -> bool:
+	var core = GameCore.new(600, {})
+	# Check initial rack has no modifiers
+	for t in core.rack:
+		if t.modifier != GameCore.MOD_NONE:
+			push_error("TSM7: empty build should have no modifiers in initial rack")
+			return false
+	# Simulate 50 refills; none should carry MOD_2X
+	for _refill_count in 50:
+		core.rack.clear()
+		core.refill_rack()
+		for t in core.rack:
+			if t.modifier == GameCore.MOD_2X:
+				push_error("TSM7: empty build should never add MOD_2X, but found one")
+				return false
+	return true
+
+# TSM8 - {MOD_2X: 2} guarantees exactly 2 MOD_2X tiles on distinct rack indices.
+func test_build_guarantees_2x_count() -> bool:
+	var core = GameCore.new(700, {GameCore.MOD_2X: 2})
+	# Initial rack refill
+	var mod2x_indices: Array = []
+	for i in core.rack.size():
+		if core.rack[i].modifier == GameCore.MOD_2X:
+			mod2x_indices.append(i)
+	if mod2x_indices.size() != 2:
+		push_error("TSM8 initial: expected 2 MOD_2X tiles, got %d" % mod2x_indices.size())
+		return false
+	if mod2x_indices[0] == mod2x_indices[1]:
+		push_error("TSM8: MOD_2X tiles on same index")
+		return false
+	# Multiple refills should maintain the guarantee
+	for _refill_count in 20:
+		core.rack.clear()
+		core.refill_rack()
+		var count := 0
+		for t in core.rack:
+			if t.modifier == GameCore.MOD_2X:
+				count += 1
+		if count != 2:
+			push_error("TSM8 refill %d: expected 2 MOD_2X, got %d" % [_refill_count, count])
+			return false
+	return true
+
+# TSM9 - Over-stack {MOD_2X: 99} gracefully tops out; no crash, no infinite loop.
+func test_build_over_stack_graceful() -> bool:
+	var core = GameCore.new(800, {GameCore.MOD_2X: 99})
+	# RACK_SIZE = 7, all tiles start unmodified, so we can add at most 7 MOD_2X.
+	# Even though the build requests 99, we expect exactly 7 MOD_2X tiles.
+	var expected_mod_count := GameCore.RACK_SIZE
+	var actual_count := 0
+	for t in core.rack:
+		if t.modifier == GameCore.MOD_2X:
+			actual_count += 1
+	if actual_count != expected_mod_count:
+		push_error("TSM9: expected %d MOD_2X (limited by rack size), got %d" % [expected_mod_count, actual_count])
+		return false
+	# No crash or infinite loop if we refill several times
+	for _i in 10:
+		core.rack.clear()
+		core.refill_rack()
+	return true
+
+# TSM10 - Shop auto-pick adds MOD_2X at intervals (rounds 4, 7, 10, ...).
+func test_shop_auto_pick_at_intervals() -> bool:
+	var core = GameCore.new(999, {}, "default")
+	var target_rounds = [4, 7]
+
+	# Manually step through game, forcing round wins
+	while core.current_round <= 7 and not core.is_game_over:
+		# Force win this round by setting round_score >= target
+		core.round_score = core.target_score
+		# Trigger one turn to advance round
+		var placed: Array = []
+		core.end_turn(placed)
+
+	# Check that MOD_2X count matches expectations
+	var mod_count = core.modifier_build.get(GameCore.MOD_2X, 0)
+	# Should have picked at round 4 and 7, so count should be 2
+	if mod_count != 2:
+		push_error("TSM10: expected 2 MOD_2X picks (at rounds 4 and 7), got %d" % mod_count)
+		return false
+
+	return true
+
+# TSM11 - Shop auto-pick with "never_pick" strategy doesn't add mods.
+func test_shop_never_pick() -> bool:
+	var core = GameCore.new(999, {}, "never_pick")
+
+	while core.current_round <= 7 and not core.is_game_over:
+		while core.turns_left > 0 and not core.is_game_over:
+			var placed: Array = []
+			if core.rack.size() > 0:
+				var tile = core.rack[0]
+				core.rack.remove_at(0)
+				if core.place_pending_tile(tile, Vector2i(0, 0)):
+					placed.append(Vector2i(0, 0))
+				else:
+					core.rack.insert(0, tile)
+			core.end_turn(placed)
+			if core.round_score >= core.target_score:
+				break
+
+	# With never_pick, modifier_build should remain empty
+	if not core.modifier_build.is_empty():
+		push_error("TSM11: expected empty modifier_build with never_pick, got %s" % str(core.modifier_build))
+		return false
+
 	return true
