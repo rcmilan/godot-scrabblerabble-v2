@@ -4,8 +4,8 @@
 [ext_resource type="Script" path="res://scripts/letter_item.gd" id="2"]
 
 [node name="LetterPickerDialog" type="Panel"]
-custom_minimum_size = Vector2(280, 140)
-size = Vector2(280, 140)
+custom_minimum_size = Vector2(340, 140)
+size = Vector2(340, 140)
 theme_type_variation = &"WindowFrame"
 script = ExtResource("1")
 
