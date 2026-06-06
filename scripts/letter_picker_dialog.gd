@@ -29,7 +29,7 @@ func populate(upgrade_id: String, letters: Array[String]) -> void:
 		item.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
 		_grid.add_child(item)
 		_item_nodes.append(item)
-		item.pick_requested.connect(_on_item_picked.bind(i))
+		item.pick_requested.connect(_on_item_picked)
 		item.nav_left.connect(_on_item_nav_left.bind(i))
 		item.nav_right.connect(_on_item_nav_right.bind(i))
 		item.nav_down.connect(_on_item_nav_down)

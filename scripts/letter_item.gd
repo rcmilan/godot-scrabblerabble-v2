@@ -7,12 +7,20 @@ signal nav_right
 signal nav_up
 signal nav_down
 
-const BODY_SIZE := Vector2(40.0, 52.0)
-const C_FOCUS_BORDER := Color(1, 1, 0, 1)
-const C_TILE_BG      := Color(0.96, 0.92, 0.78, 1.0)
-const C_TILE_BORDER  := Color(0.3, 0.2, 0.1, 1.0)
-const C_LETTER       := Color(0.05, 0.05, 0.05, 1.0)
-const C_PTS          := Color(0.25, 0.2, 0.1, 1.0)
+# Match tile.tscn custom_minimum_size = Vector2(56, 56)
+const BODY_SIZE := Vector2(56.0, 56.0)
+
+# Win95 bevel colors — identical to tile.gd
+const C_OUTER_LIGHT := Color("#FFFFFF")
+const C_INNER_LIGHT := Color("#DFDFDF")
+const C_INNER_DARK  := Color("#808080")
+const C_OUTER_DARK  := Color("#0A0A0A")
+
+# Label colors — identical to tile.gd (non-modifier variant)
+const C_LABEL_LETTER := Color(0.0,   0.0,   0.502, 1.0)
+const C_LABEL_POINT  := Color(0.251, 0.251, 0.251, 1.0)
+
+const C_FOCUS_BORDER := Color(1.0, 1.0, 0.0, 1.0)
 
 const LETTER_POINTS_FALLBACK := {
 	"A":1,"B":3,"C":3,"D":2,"E":1,"F":4,"G":2,"H":4,"I":1,"J":8,
@@ -43,28 +51,41 @@ func _ready() -> void:
 	custom_minimum_size = BODY_SIZE
 
 func _draw() -> void:
-	var sz := size
-	if sz.x < 4.0 or sz.y < 4.0:
+	var w := int(size.x)
+	var h := int(size.y)
+	if w < 4 or h < 4:
 		return
 
-	draw_rect(Rect2(Vector2.ZERO, sz), C_TILE_BORDER, true)
-	draw_rect(Rect2(Vector2(1, 1), sz - Vector2(2, 2)), C_TILE_BG, true)
+	# Win95 raised bevel — same lines as tile.gd _draw()
+	draw_line(Vector2(0, 0),     Vector2(w - 1, 0),     C_OUTER_LIGHT)
+	draw_line(Vector2(0, 0),     Vector2(0, h - 1),     C_OUTER_LIGHT)
+	draw_line(Vector2(1, 1),     Vector2(w - 2, 1),     C_INNER_LIGHT)
+	draw_line(Vector2(1, 1),     Vector2(1, h - 2),     C_INNER_LIGHT)
+	draw_line(Vector2(w - 2, 1), Vector2(w - 2, h - 2), C_INNER_DARK)
+	draw_line(Vector2(1, h - 2), Vector2(w - 2, h - 2), C_INNER_DARK)
+	draw_line(Vector2(w - 1, 0), Vector2(w - 1, h - 1), C_OUTER_DARK)
+	draw_line(Vector2(0, h - 1), Vector2(w - 1, h - 1), C_OUTER_DARK)
 
 	var font := get_theme_default_font()
 	if font:
-		var font_size_letter := 22
+		# Letter: font_size 24, centered — mirrors LetterLabel in tile.tscn
+		var font_size_letter := 24
 		var letter_size := font.get_string_size(_letter, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size_letter)
-		var letter_pos := Vector2((sz.x - letter_size.x) * 0.5, (sz.y + letter_size.y) * 0.5 - 8)
-		draw_string(font, letter_pos, _letter, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size_letter, C_LETTER)
+		var letter_pos := Vector2((size.x - letter_size.x) * 0.5,
+				(size.y + letter_size.y) * 0.5 - 4.0)
+		draw_string(font, letter_pos, _letter, HORIZONTAL_ALIGNMENT_LEFT, -1,
+				font_size_letter, C_LABEL_LETTER)
 
-		var font_size_pts := 10
+		# Point value: font_size 9, bottom-right corner — mirrors PointLabel in tile.tscn
+		var font_size_pts := 9
 		var pts_str := str(_points)
 		var pts_size := font.get_string_size(pts_str, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size_pts)
-		var pts_pos := Vector2(sz.x - pts_size.x - 3, sz.y - 3)
-		draw_string(font, pts_pos, pts_str, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size_pts, C_PTS)
+		var pts_pos := Vector2(size.x - pts_size.x - 3.0, size.y - 3.0)
+		draw_string(font, pts_pos, pts_str, HORIZONTAL_ALIGNMENT_LEFT, -1,
+				font_size_pts, C_LABEL_POINT)
 
 	if has_focus():
-		draw_rect(Rect2(Vector2.ZERO, sz), C_FOCUS_BORDER, false, 2.0)
+		draw_rect(Rect2(Vector2.ZERO, size), C_FOCUS_BORDER, false, 2.0)
 
 func _gui_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_accept"):
