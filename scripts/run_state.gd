@@ -21,6 +21,7 @@ var is_transitioning: bool = false
 var is_upgrading:   bool  = false
 var history:        Array = []
 var modifier_build: Dictionary = {}   # { "2x": int, ... }  keyed by mod constant
+var letter_modifiers: Dictionary = {}  # { "A": "2x", ... }  maps letter → modifier
 
 var _t_prev: float = 0.0
 var _t_curr: float = float(INITIAL_TARGET_SCORE)
@@ -35,6 +36,7 @@ func reset() -> void:
 	is_upgrading   = false
 	history.clear()
 	modifier_build.clear()
+	letter_modifiers.clear()
 	_t_prev      = 0.0
 	_t_curr      = float(INITIAL_TARGET_SCORE)
 	target_score = INITIAL_TARGET_SCORE
@@ -47,6 +49,10 @@ func is_upgrade_due() -> bool:
 func add_to_build(mod: String) -> void:
 	modifier_build[mod] = modifier_build.get(mod, 0) + 1
 	print("[RunState] build += %s (total %d)" % [mod, modifier_build[mod]])
+
+func set_letter_modifier(letter: String, mod: String) -> void:
+	letter_modifiers[letter] = mod
+	print("[RunState] letter modifier set — %s → %s" % [letter, mod])
 
 func register_turn_score(points: int) -> void:
 	round_score += points

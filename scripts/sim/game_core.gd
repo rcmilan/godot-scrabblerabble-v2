@@ -79,13 +79,16 @@ var is_game_over:   bool  = false
 
 # Modifier build state.
 var modifier_build: Dictionary = {}
+# Letter-targeted modifier state.
+var letter_modifiers: Dictionary = {}
 
 # Target curve state.
 var _t_prev: float = 0.0
 var _t_curr: float = float(INITIAL_TARGET_SCORE)
 
-func _init(seed: int, build: Dictionary = {}) -> void:
+func _init(seed: int, build: Dictionary = {}, lmods: Dictionary = {}) -> void:
 	modifier_build = build.duplicate()
+	letter_modifiers = lmods.duplicate()
 	rng = RandomNumberGenerator.new()
 	rng.seed = seed
 	_init_board()
@@ -128,6 +131,9 @@ func rack_letters() -> Array:
 func refill_rack() -> void:
 	while rack.size() < RACK_SIZE:
 		rack.append(draw_tile())
+	for i in range(rack.size()):
+		if letter_modifiers.has(rack[i]["letter"]):
+			rack[i]["modifier"] = letter_modifiers[rack[i]["letter"]]
 	for mod in modifier_build.keys():
 		_ensure_modifier_count_in_rack(mod, modifier_build[mod])
 
@@ -154,6 +160,16 @@ func _ensure_modifier_count_in_rack(mod: String, required_count: int) -> void:
 			return  # no unmodified tiles left; top out silently
 		rack[target_idx].modifier = mod
 		have += 1
+
+func _generate_letter_options(count: int) -> Array[String]:
+	var all_letters := "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	var options: Array[String] = []
+	while options.size() < count:
+		var idx := rng.randi() % 26
+		var letter := all_letters[idx]
+		if letter not in options:
+			options.append(letter)
+	return options
 
 func is_cell_empty(pos: Vector2i) -> bool:
 	if pos.x < 0 or pos.x >= BOARD_SIZE or pos.y < 0 or pos.y >= BOARD_SIZE:
@@ -190,7 +206,13 @@ func end_turn(pending_positions: Array) -> int:
 		# the sim automatically adds one MOD_2X to the build, matching player behaviour.
 		# Upgrades do NOT carry over — each eligible round offers exactly one pick.
 		if current_round > 1 and (current_round - 1) % UPGRADE_EVERY_N_ROUNDS == 0:
-			modifier_build[MOD_2X] = modifier_build.get(MOD_2X, 0) + 1
+			var options := _generate_letter_options(5)
+			var best := options[0]
+			for l in options:
+				if LETTER_POINTS.get(l, 0) > LETTER_POINTS.get(best, 0):
+					best = l
+			letter_modifiers[best] = MOD_2X
+			print("[GameCore] upgrade auto-pick — %s → %s" % [MOD_2X, best])
 	elif turns_left <= 0:
 		is_game_over = true
 	refill_rack()
