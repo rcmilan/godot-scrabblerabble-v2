@@ -212,8 +212,9 @@ func end_turn(pending_positions: Array) -> int:
 			for l in options:
 				if LETTER_POINTS.get(l, 0) > LETTER_POINTS.get(best, 0):
 					best = l
-			letter_modifiers[best] = MOD_3X
-			print("[GameCore] upgrade auto-pick — %s → %s" % [MOD_3X, best])
+			var offered_mod := MOD_3X if rng.randi() % 3 == 0 else MOD_2X
+			letter_modifiers[best] = offered_mod
+			print("[GameCore] upgrade auto-pick — %s → %s" % [offered_mod, best])
 	elif turns_left <= 0:
 		is_game_over = true
 	refill_rack()

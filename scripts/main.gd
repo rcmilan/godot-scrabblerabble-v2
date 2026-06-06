@@ -294,9 +294,9 @@ func _on_transition_finished() -> void:
 		board.focus_cell(cursor)
 
 func _show_upgrade_dialog() -> void:
+	var offered_id := GameData.MOD_3X if randi() % 3 == 0 else GameData.MOD_2X
 	var upgrades: Array[Dictionary] = [
-		{"id": GameData.MOD_2X, "label": "2x Tile", "desc": "+1 guaranteed 2x tile"},
-		{"id": GameData.MOD_3X, "label": "3x Tile", "desc": "+1 guaranteed 3x tile"},
+		{"id": offered_id},
 	]
 	RunState.is_upgrading = true
 	print("[UpgradeDialog] upgrade offered — round %d" % RunState.current_round)
@@ -324,7 +324,7 @@ func _show_upgrade_dialog() -> void:
 	)
 
 	if _autoplay_active:
-		_autoplay_pick_upgrade_dialog(dialog)
+		_autoplay_pick_upgrade_dialog(dialog, offered_id)
 
 func _show_letter_picker(upgrade_id: String, upgrade_dialog: Node, upgrade_layer: CanvasLayer) -> void:
 	var letters := _generate_letter_options(5)
@@ -378,10 +378,10 @@ func _autoplay_pick_letter(picker: Node, letters: Array[String]) -> void:
 	if is_instance_valid(picker):
 		picker.letter_picked.emit(best)
 
-func _autoplay_pick_upgrade_dialog(dialog: UpgradeDialog) -> void:
+func _autoplay_pick_upgrade_dialog(dialog: UpgradeDialog, upgrade_id: String) -> void:
 	await get_tree().create_timer(1.0).timeout
 	if is_instance_valid(dialog):
-		dialog.upgrade_picked.emit(GameData.MOD_3X)
+		dialog.upgrade_picked.emit(upgrade_id)
 
 func _on_game_over(final_round: int, final_round_score: int, final_target: int) -> void:
 	_autoplay_active = false

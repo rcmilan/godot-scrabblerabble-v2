@@ -364,10 +364,11 @@ func test_upgrade_auto_pick_at_intervals() -> bool:
 	if lmod_count < 1:
 		push_error("TSM10: expected letter_modifiers to have entries after rounds 4 and 7, got %d" % lmod_count)
 		return false
-	# All values in letter_modifiers should be MOD_3X (sim greedily picks the best upgrade).
+	# Each auto-picked value should be either MOD_2X or MOD_3X (random 1/3 chance of 3x).
 	for letter in core.letter_modifiers:
-		if core.letter_modifiers[letter] != GameCore.MOD_3X:
-			push_error("TSM10: expected letter_modifiers[%s] == MOD_3X, got '%s'" % [letter, core.letter_modifiers[letter]])
+		var v: String = core.letter_modifiers[letter]
+		if v != GameCore.MOD_2X and v != GameCore.MOD_3X:
+			push_error("TSM10: expected letter_modifiers[%s] to be MOD_2X or MOD_3X, got '%s'" % [letter, v])
 			return false
 
 	return true
