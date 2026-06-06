@@ -2,7 +2,10 @@ class_name UpgradeItem
 extends Control
 
 signal pick_requested(index: int)
-signal board_focus_requested
+signal nav_left
+signal nav_right
+signal nav_up
+signal nav_down
 
 const BODY_SIZE := Vector2(72.0, 72.0)
 
@@ -13,7 +16,7 @@ const C_OUTER_DARK           := Color("#0A0A0A")
 const C_MOD_GRADIENT_LEFT    := Color(0.0,        0.0,         0.5019, 1.0)
 const C_MOD_GRADIENT_RIGHT   := Color(16.0/255.0, 132.0/255.0, 208.0/255.0, 1.0)
 const C_LABEL                := Color(1.0, 1.0, 1.0, 1.0)
-const C_FOCUS_BORDER         := Color(1.0, 1.0, 0.4, 1.0)
+const C_FOCUS_BORDER         := Color(1.0, 1.0, 0.0, 1.0)
 
 var item_index: int    = 0
 var upgrade_id: String = ""
@@ -24,6 +27,8 @@ func _ready() -> void:
 	mouse_filter        = MOUSE_FILTER_STOP
 	focus_entered.connect(queue_redraw)
 	focus_exited.connect(queue_redraw)
+	# Suppress Godot's default focus StyleBox so it doesn't draw a caret.
+	add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 
 func _draw() -> void:
 	var body_x   := (size.x - BODY_SIZE.x) * 0.5
@@ -36,18 +41,17 @@ func _gui_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_accept"):
 		pick_requested.emit(item_index)
 		get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("ui_right") or event.is_action_pressed("ui_cancel"):
-		board_focus_requested.emit()
+	elif event.is_action_pressed("ui_left"):
+		nav_left.emit()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("ui_right"):
+		nav_right.emit()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("ui_up"):
-		var prev := _sibling(-1)
-		if prev:
-			prev.grab_focus()
+		nav_up.emit()
 		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("ui_down"):
-		var next := _sibling(1)
-		if next:
-			next.grab_focus()
+		nav_down.emit()
 		get_viewport().set_input_as_handled()
 	elif event is InputEventMouseButton \
 			and (event as InputEventMouseButton).button_index == MOUSE_BUTTON_LEFT \
@@ -55,17 +59,6 @@ func _gui_input(event: InputEvent) -> void:
 		grab_focus()
 		pick_requested.emit(item_index)
 		get_viewport().set_input_as_handled()
-
-func _sibling(delta: int) -> UpgradeItem:
-	var parent := get_parent()
-	if not parent:
-		return null
-	var items: Array = parent.get_children().filter(func(c): return c is UpgradeItem)
-	var idx := items.find(self)
-	var target := idx + delta
-	if target >= 0 and target < items.size():
-		return items[target] as UpgradeItem
-	return null
 
 # --- drawing helpers (mirrors desktop_icon.gd) ---
 
