@@ -18,6 +18,9 @@ func refill() -> void:
 		tile.letter = letter
 		add_child(tile)
 		tiles_in_hand.append(tile)
+	for tile in tiles_in_hand:
+		if RunState.letter_modifiers.has(tile.letter):
+			tile.set_modifier(RunState.letter_modifiers[tile.letter])
 	for mod in RunState.modifier_build.keys():
 		_ensure_modifier_count_in_rack(mod, RunState.modifier_build[mod])
 

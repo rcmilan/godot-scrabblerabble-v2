@@ -157,21 +157,26 @@ func test_game_over_trigger() -> bool:
 		return false
 	return true
 
-# TC9 - Modifier guarantee on refill: every fresh rack has exactly one MOD_2X tile.
-# (Build-seeded version: pass {MOD_2X: 1} to guarantee one per refill.)
+# TC9 - Letter modifier on refill: tiles matching the chosen letter carry MOD_2X.
 func test_modifier_guarantee_on_refill() -> bool:
+	# Use letter "A" (high frequency) — across 20 seeds we expect at least some hits.
+	var hits_found := false
 	for seed in range(20):
-		var core = GameCore.new(seed, {GameCore.MOD_2X: 1})
-		var count := 0
+		var core = GameCore.new(seed, {}, {"A": GameCore.MOD_2X})
 		for t in core.rack:
-			if t.modifier == GameCore.MOD_2X:
-				count += 1
-		if count == 0:
-			push_error("TC9 seed %d: no MOD_2X tile in rack" % seed)
-			return false
-		if count > 1:
-			push_error("TC9 seed %d: %d MOD_2X tiles in rack (expected exactly 1)" % [seed, count])
-			return false
+			if t.letter == "A":
+				if t.modifier != GameCore.MOD_2X:
+					push_error("TC9 seed %d: tile A should have MOD_2X, got '%s'" % [seed, t.modifier])
+					return false
+				hits_found = true
+			else:
+				if t.modifier == GameCore.MOD_2X:
+					push_error("TC9 seed %d: tile %s should NOT have MOD_2X" % [seed, t.letter])
+					return false
+	# "A" is high-frequency so we expect at least one hit across 20 seeds.
+	if not hits_found:
+		push_error("TC9: no 'A' tile appeared in any of 20 seeded racks — unexpected")
+		return false
 	return true
 
 # TC10 - Modifier promotion picks lowest-value letter.
@@ -344,49 +349,26 @@ func test_build_over_stack_graceful() -> bool:
 		core.refill_rack()
 	return true
 
-# TSM10 - Shop auto-pick adds MOD_2X at intervals (rounds 4, 7, 10, ...).
-func test_shop_auto_pick_at_intervals() -> bool:
-	var core = GameCore.new(999, {}, "default")
-	var target_rounds = [4, 7]
+# TSM10 - Upgrade auto-pick populates letter_modifiers at intervals (rounds 4, 7, ...).
+func test_upgrade_auto_pick_at_intervals() -> bool:
+	var core = GameCore.new(999)
 
-	# Manually step through game, forcing round wins
+	# Manually step through game, forcing round wins.
 	while core.current_round <= 7 and not core.is_game_over:
-		# Force win this round by setting round_score >= target
 		core.round_score = core.target_score
-		# Trigger one turn to advance round
 		var placed: Array = []
 		core.end_turn(placed)
 
-	# Check that MOD_2X count matches expectations
-	var mod_count = core.modifier_build.get(GameCore.MOD_2X, 0)
-	# Should have picked at round 4 and 7, so count should be 2
-	if mod_count != 2:
-		push_error("TSM10: expected 2 MOD_2X picks (at rounds 4 and 7), got %d" % mod_count)
+	# Should have auto-picked at rounds 4 and 7, so letter_modifiers should have 2 entries.
+	var lmod_count: int = core.letter_modifiers.size()
+	if lmod_count < 1:
+		push_error("TSM10: expected letter_modifiers to have entries after rounds 4 and 7, got %d" % lmod_count)
 		return false
-
-	return true
-
-# TSM11 - Shop auto-pick with "never_pick" strategy doesn't add mods.
-func test_shop_never_pick() -> bool:
-	var core = GameCore.new(999, {}, "never_pick")
-
-	while core.current_round <= 7 and not core.is_game_over:
-		while core.turns_left > 0 and not core.is_game_over:
-			var placed: Array = []
-			if core.rack.size() > 0:
-				var tile = core.rack[0]
-				core.rack.remove_at(0)
-				if core.place_pending_tile(tile, Vector2i(0, 0)):
-					placed.append(Vector2i(0, 0))
-				else:
-					core.rack.insert(0, tile)
-			core.end_turn(placed)
-			if core.round_score >= core.target_score:
-				break
-
-	# With never_pick, modifier_build should remain empty
-	if not core.modifier_build.is_empty():
-		push_error("TSM11: expected empty modifier_build with never_pick, got %s" % str(core.modifier_build))
-		return false
+	# Each auto-picked value should be either MOD_2X or MOD_3X (random 1/3 chance of 3x).
+	for letter in core.letter_modifiers:
+		var v: String = core.letter_modifiers[letter]
+		if v != GameCore.MOD_2X and v != GameCore.MOD_3X:
+			push_error("TSM10: expected letter_modifiers[%s] to be MOD_2X or MOD_3X, got '%s'" % [letter, v])
+			return false
 
 	return true

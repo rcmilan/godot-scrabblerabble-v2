@@ -145,3 +145,4 @@ layout_mode = 2
 size_flags_horizontal = 4
 alignment = 1
 script = ExtResource("3_rack")
+

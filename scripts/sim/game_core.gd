@@ -12,10 +12,11 @@ const INITIAL_TARGET_SCORE:   int = 20
 const WORD_BONUS_MULTIPLIER:  int = 2
 const BOARD_SIZE:             int = 8
 const RACK_SIZE:              int = 7
-const SHOP_EVERY_N_ROUNDS:    int = 3
+const UPGRADE_EVERY_N_ROUNDS: int = 3
 
 const MOD_NONE: String = ""
 const MOD_2X:   String = "2x"
+const MOD_3X:   String = "3x"
 
 # Letter distribution and points (from GameData, embedded here for headless mode)
 const LETTER_DISTRIBUTION = {
@@ -79,17 +80,16 @@ var is_game_over:   bool  = false
 
 # Modifier build state.
 var modifier_build: Dictionary = {}
-
-# Shop interval automation.
-var shop_strategy: String = "default"  # "default", "always_pick", "never_pick"
+# Letter-targeted modifier state.
+var letter_modifiers: Dictionary = {}
 
 # Target curve state.
 var _t_prev: float = 0.0
 var _t_curr: float = float(INITIAL_TARGET_SCORE)
 
-func _init(seed: int, build: Dictionary = {}, shop_str: String = "default") -> void:
+func _init(seed: int, build: Dictionary = {}, lmods: Dictionary = {}) -> void:
 	modifier_build = build.duplicate()
-	shop_strategy = shop_str
+	letter_modifiers = lmods.duplicate()
 	rng = RandomNumberGenerator.new()
 	rng.seed = seed
 	_init_board()
@@ -132,6 +132,9 @@ func rack_letters() -> Array:
 func refill_rack() -> void:
 	while rack.size() < RACK_SIZE:
 		rack.append(draw_tile())
+	for i in range(rack.size()):
+		if letter_modifiers.has(rack[i]["letter"]):
+			rack[i]["modifier"] = letter_modifiers[rack[i]["letter"]]
 	for mod in modifier_build.keys():
 		_ensure_modifier_count_in_rack(mod, modifier_build[mod])
 
@@ -159,16 +162,15 @@ func _ensure_modifier_count_in_rack(mod: String, required_count: int) -> void:
 		rack[target_idx].modifier = mod
 		have += 1
 
-func auto_pick_modifiers() -> void:
-	# Automatically pick modifiers at shop intervals based on shop_strategy.
-	if shop_strategy == "never_pick":
-		return
-	# Check if shop is due at current_round (after _advance_round)
-	if current_round > 1 and (current_round - 1) % SHOP_EVERY_N_ROUNDS == 0:
-		# Always pick MOD_2X: 1 at each shop interval
-		if not modifier_build.has(MOD_2X):
-			modifier_build[MOD_2X] = 0
-		modifier_build[MOD_2X] += 1
+func _generate_letter_options(count: int) -> Array[String]:
+	var all_letters := "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	var options: Array[String] = []
+	while options.size() < count:
+		var idx := rng.randi() % 26
+		var letter := all_letters[idx]
+		if letter not in options:
+			options.append(letter)
+	return options
 
 func is_cell_empty(pos: Vector2i) -> bool:
 	if pos.x < 0 or pos.x >= BOARD_SIZE or pos.y < 0 or pos.y >= BOARD_SIZE:
@@ -201,7 +203,18 @@ func end_turn(pending_positions: Array) -> int:
 	turns_left -= 1
 	if round_score >= target_score:
 		_advance_round()
-		auto_pick_modifiers()
+		# Mirror the upgrade-dialog auto-pick: at each UPGRADE_EVERY_N_ROUNDS interval
+		# the sim automatically adds one MOD_2X to the build, matching player behaviour.
+		# Upgrades do NOT carry over — each eligible round offers exactly one pick.
+		if current_round > 1 and (current_round - 1) % UPGRADE_EVERY_N_ROUNDS == 0:
+			var options := _generate_letter_options(5)
+			var best := options[0]
+			for l in options:
+				if LETTER_POINTS.get(l, 0) > LETTER_POINTS.get(best, 0):
+					best = l
+			var offered_mod := MOD_3X if rng.randi() % 3 == 0 else MOD_2X
+			letter_modifiers[best] = offered_mod
+			print("[GameCore] upgrade auto-pick — %s → %s" % [offered_mod, best])
 	elif turns_left <= 0:
 		is_game_over = true
 	refill_rack()
@@ -242,8 +255,11 @@ func _calculate_turn_score(pending_positions: Array) -> int:
 							var ch: String = w.text[i]
 							var cell_pos: Vector2i = w.cells[i]
 							var letter_pts: int = LETTER_POINTS.get(ch.to_upper(), 0)
-							if board_modifiers[cell_pos.x][cell_pos.y] == MOD_2X:
+							var mod: String = board_modifiers[cell_pos.x][cell_pos.y]
+							if mod == MOD_2X:
 								letter_pts *= 2
+							elif mod == MOD_3X:
+								letter_pts *= 3
 							sub_points += letter_pts
 						# Apply word bonus if at least one new tile in sub-word
 						var has_new_tile := false
@@ -261,8 +277,11 @@ func _calculate_turn_score(pending_positions: Array) -> int:
 					var ch: String = w.text[i]
 					var cell_pos: Vector2i = w.cells[i]
 					var letter_pts: int = LETTER_POINTS.get(ch.to_upper(), 0)
-					if board_modifiers[cell_pos.x][cell_pos.y] == MOD_2X:
+					var mod: String = board_modifiers[cell_pos.x][cell_pos.y]
+					if mod == MOD_2X:
 						letter_pts *= 2
+					elif mod == MOD_3X:
+						letter_pts *= 3
 					letter_points += letter_pts
 				total += letter_points
 	return total
@@ -273,8 +292,11 @@ func _score_word_sim(w: Dictionary) -> int:
 		var ch: String = (w.text as String)[i]
 		var cell_pos: Vector2i = w.cells[i]
 		var letter_pts: int = LETTER_POINTS.get(ch.to_upper(), 0)
-		if board_modifiers[cell_pos.x][cell_pos.y] == MOD_2X:
+		var mod: String = board_modifiers[cell_pos.x][cell_pos.y]
+		if mod == MOD_2X:
 			letter_pts *= 2
+		elif mod == MOD_3X:
+			letter_pts *= 3
 		word_points += letter_pts
 	word_points *= WORD_BONUS_MULTIPLIER
 	return word_points

@@ -12,6 +12,7 @@ const WordSearchStrategy = preload("res://scripts/sim/strategies/word_search_str
 const DiagonalClusterStrategy = preload("res://scripts/sim/strategies/diagonal_cluster_strategy.gd")
 const HybridWordDiagonalStrategy = preload("res://scripts/sim/strategies/hybrid_word_diagonal_strategy.gd")
 const CornerSpiralStrategy = preload("res://scripts/sim/strategies/corner_spiral_strategy.gd")
+const LongestWordStrategy = preload("res://scripts/sim/strategies/longest_word_strategy.gd")
 
 func _initialize() -> void:
 	var args = _parse_args()
@@ -21,7 +22,6 @@ func _initialize() -> void:
 	var base_seed = int(args.get("seed", "42"))
 	var output_dir = args.get("out", "user://sim/")
 	var build_str = args.get("build", "")
-	var shop_strategy = args.get("shop-strategy", "default")
 
 	var strategies = _build_strategies(strategies_str)
 	if strategies.is_empty():
@@ -36,11 +36,9 @@ func _initialize() -> void:
 	print("  Base seed: %d" % base_seed)
 	if not modifier_build.is_empty():
 		print("  Build: %s" % _build_to_string(modifier_build))
-	if shop_strategy != "default":
-		print("  Shop strategy: %s" % shop_strategy)
 
 	var sim = Simulator.new()
-	var results = sim.run_batch(strategies, runs_per_strategy, base_seed, modifier_build, shop_strategy)
+	var results = sim.run_batch(strategies, runs_per_strategy, base_seed, modifier_build)
 
 	var writer = ResultsWriter.new()
 	var file_info = writer.write_batch(results)
@@ -100,6 +98,8 @@ func _build_strategies(strategies_str: String) -> Array:
 			strategies.append(HybridWordDiagonalStrategy.new())
 		elif name == "corner_spiral":
 			strategies.append(CornerSpiralStrategy.new())
+		elif name == "longest_word":
+			strategies.append(LongestWordStrategy.new())
 		else:
 			print("WARNING: Unknown strategy '%s'" % name)
 

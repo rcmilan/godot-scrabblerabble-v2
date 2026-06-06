@@ -3,6 +3,7 @@ extends Node
 
 const MOD_NONE: String = ""
 const MOD_2X:   String = "2x"
+const MOD_3X:   String = "3x"
 
 # Standard Scrabble letter point values (English).
 const LETTER_POINTS: Dictionary = {

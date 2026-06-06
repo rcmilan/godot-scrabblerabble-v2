@@ -6,7 +6,8 @@ const WORD_BONUS_MULTIPLIER: int = 2
 const GLITTER_SCENE          := preload("res://scenes/glitter_emitter.tscn")
 const GAME_OVER_SCENE        := preload("res://scenes/game_over_dialog.tscn")
 const ROUND_TRANSITION_SCENE := preload("res://scenes/round_transition.tscn")
-const DESKTOP_SCENE          := preload("res://scenes/desktop.tscn")
+const UPGRADE_DIALOG_SCENE   := preload("res://scenes/upgrade_dialog.tscn")
+const LETTER_PICKER_SCENE    := preload("res://scenes/letter_picker_dialog.tscn")
 
 const WORD_SEARCH_STRATEGY      := preload("res://scripts/sim/strategies/word_search_strategy.gd")
 const GREEDY_STRATEGY           := preload("res://scripts/sim/strategies/greedy_strategy.gd")
@@ -46,9 +47,9 @@ func _on_cell_focused(cell: BoardCell) -> void:
 
 # ---------- Input ----------
 func _unhandled_input(event: InputEvent) -> void:
-	# While the game over dialog is up, all input belongs to it.
-	if RunState.is_game_over or RunState.is_transitioning:
+	if RunState.is_game_over or RunState.is_transitioning or RunState.is_upgrading:
 		return
+
 	if event.is_action_pressed("ui_left"):
 		_move_cursor(Vector2i(-1, 0))
 		get_viewport().set_input_as_handled()
@@ -86,7 +87,7 @@ func _try_place_letter_on_cursor(letter: String) -> void:
 
 # ---------- Drag and drop ----------
 func on_tile_dropped_on_cell(tile: Tile, cell: BoardCell) -> void:
-	if RunState.is_transitioning or not cell.is_empty():
+	if RunState.is_transitioning or RunState.is_upgrading or not cell.is_empty():
 		return
 	_place_tile_on_cell(tile, cell)
 
@@ -180,9 +181,13 @@ func _calculate_turn_score() -> int:
 							var ch: String = w.text[i]
 							var cell: BoardCell = w.cells[i]
 							var letter_pts: int = GameData.score_for_letter(ch)
-							if cell.get_modifier() == GameData.MOD_2X:
+							var mod := cell.get_modifier()
+							if mod == GameData.MOD_2X:
 								letter_pts *= 2
 								sub_mods.append("2x@%d" % (i - start_idx))
+							elif mod == GameData.MOD_3X:
+								letter_pts *= 3
+								sub_mods.append("3x@%d" % (i - start_idx))
 							sub_points += letter_pts
 						# Apply word bonus if at least one new tile in sub-word
 						var has_new_tile := false
@@ -203,9 +208,13 @@ func _calculate_turn_score() -> int:
 					var ch: String = w.text[i]
 					var cell: BoardCell = w.cells[i]
 					var letter_pts: int = GameData.score_for_letter(ch)
-					if cell.get_modifier() == GameData.MOD_2X:
+					var mod := cell.get_modifier()
+					if mod == GameData.MOD_2X:
 						letter_pts *= 2
 						mods_parts.append("2x@%d" % i)
+					elif mod == GameData.MOD_3X:
+						letter_pts *= 3
+						mods_parts.append("3x@%d" % i)
 					letter_points += letter_pts
 				var mods_str := ", ".join(mods_parts) if mods_parts.size() > 0 else "none"
 				print("invalid: %s = %d points (modifiers: %s)" % [w.text, letter_points, mods_str])
@@ -214,14 +223,15 @@ func _calculate_turn_score() -> int:
 
 func _score_word(w: Dictionary) -> int:
 	var word_points := 0
-	var mods_parts: Array = []
 	for i in (w.text as String).length():
 		var ch: String = (w.text as String)[i]
 		var cell: BoardCell = w.cells[i]
 		var letter_pts: int = GameData.score_for_letter(ch)
-		if cell.get_modifier() == GameData.MOD_2X:
+		var mod := cell.get_modifier()
+		if mod == GameData.MOD_2X:
 			letter_pts *= 2
-			mods_parts.append("2x@%d" % i)
+		elif mod == GameData.MOD_3X:
+			letter_pts *= 3
 		word_points += letter_pts
 	word_points *= WORD_BONUS_MULTIPLIER
 	return word_points
@@ -230,8 +240,11 @@ func _get_modifiers_str(w: Dictionary) -> String:
 	var mods_parts: Array = []
 	for i in (w.text as String).length():
 		var cell: BoardCell = w.cells[i]
-		if cell.get_modifier() == GameData.MOD_2X:
+		var mod := cell.get_modifier()
+		if mod == GameData.MOD_2X:
 			mods_parts.append("2x@%d" % i)
+		elif mod == GameData.MOD_3X:
+			mods_parts.append("3x@%d" % i)
 	return ", ".join(mods_parts) if mods_parts.size() > 0 else "none"
 
 func _extract_word_in_direction(cell: BoardCell, dir: Vector2i) -> Dictionary:
@@ -274,40 +287,101 @@ func _on_round_won(round_num: int, _round_score: int, _target: int) -> void:
 	transition.play(round_num)
 
 func _on_transition_finished() -> void:
-	if RunState.is_shop_due():
-		_open_shop()
-		# is_transitioning stays true until the shop closes.
-		return
 	RunState.is_transitioning = false
-	board.focus_cell(cursor)
+	if RunState.is_upgrade_due():
+		_show_upgrade_dialog()
+	else:
+		board.focus_cell(cursor)
 
-func _open_shop() -> void:
-	var desktop := DESKTOP_SCENE.instantiate()
-	add_child(desktop)
-	desktop.resume_requested.connect(_on_shop_closed.bind(desktop))
+func _show_upgrade_dialog() -> void:
+	var offered_id := GameData.MOD_3X if randi() % 3 == 0 else GameData.MOD_2X
+	var upgrades: Array[Dictionary] = [
+		{"id": offered_id},
+	]
+	RunState.is_upgrading = true
+	print("[UpgradeDialog] upgrade offered — round %d" % RunState.current_round)
 
-	# If autoplay is active, automatically pick a modifier and resume
+	var dialog: Panel = UPGRADE_DIALOG_SCENE.instantiate()
+	var layer := CanvasLayer.new()
+	layer.layer = 50
+	add_child(layer)
+	layer.add_child(dialog)
+
+	# Center dialog; use custom_minimum_size since size is (0,0) before first layout pass.
+	var vp_size := get_viewport().get_visible_rect().size
+	dialog.position = (vp_size - dialog.custom_minimum_size) / 2.0
+
+	dialog.populate(upgrades)
+	dialog.focus_first()
+
+	dialog.upgrade_picked.connect(func(id: String) -> void:
+		_show_letter_picker(id, dialog, layer)
+	)
+	dialog.skipped.connect(func() -> void:
+		layer.queue_free()
+		RunState.is_upgrading = false
+		board.focus_cell(cursor)
+	)
+
 	if _autoplay_active:
-		await get_tree().create_timer(1.0).timeout  # Show shop for 1 second
-		if is_instance_valid(desktop):
-			await desktop.on_mod2x_picked()
-			await get_tree().create_timer(0.2).timeout
-			if is_instance_valid(desktop):
-				# Highlight scrabblerabble icon to show intent.
-				# Index 2 is ScrabblerabbleIcon in desktop.gd's _icons array.
-				desktop._set_icon_focused(2)
-				await get_tree().create_timer(0.5).timeout
-				if is_instance_valid(desktop):
-					desktop.resume_requested.emit()
+		_autoplay_pick_upgrade_dialog(dialog, offered_id)
 
-func _on_shop_closed(desktop: Node) -> void:
-	desktop.queue_free()
-	# The player may have added modifiers to the build; force a refill
-	# so the new guarantees show up immediately, not on the next end-of-turn.
-	rack.refill()
-	RunState.is_transitioning = false
-	board.focus_cell(cursor)
-	_update_hud()
+func _show_letter_picker(upgrade_id: String, upgrade_dialog: Node, upgrade_layer: CanvasLayer) -> void:
+	var letters := _generate_letter_options(5)
+	upgrade_dialog.visible = false
+
+	var picker = LETTER_PICKER_SCENE.instantiate()
+	upgrade_layer.add_child(picker)
+	picker.position = (get_viewport().get_visible_rect().size - picker.custom_minimum_size) * 0.5
+	picker.populate(upgrade_id, letters)
+
+	picker.letter_picked.connect(func(letter: String):
+		RunState.set_letter_modifier(letter, upgrade_id)
+		rack.refill()
+		upgrade_layer.queue_free()
+		RunState.is_upgrading = false
+		print("[Turn] upgrade applied — %s → %s" % [upgrade_id, letter])
+		board.focus_cell(cursor)
+		_update_hud()
+	)
+	picker.back_pressed.connect(func():
+		picker.queue_free()
+		upgrade_dialog.visible = true
+		upgrade_dialog.focus_first()
+	)
+	picker.focus_first()
+
+	if _autoplay_active:
+		_autoplay_pick_letter(picker, letters)
+
+func _generate_letter_options(count: int) -> Array[String]:
+	var all_letters := "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	var options: Array[String] = []
+	while options.size() < count:
+		var idx := randi() % 26
+		var letter := all_letters[idx]
+		if letter not in options:
+			options.append(letter)
+	return options
+
+func _autoplay_pick_letter(picker: Node, letters: Array[String]) -> void:
+	var letter_pts := {
+		"A":1,"B":3,"C":3,"D":2,"E":1,"F":4,"G":2,"H":4,"I":1,"J":8,
+		"K":5,"L":1,"M":3,"N":1,"O":1,"P":3,"Q":10,"R":1,"S":1,"T":1,
+		"U":1,"V":4,"W":4,"X":8,"Y":4,"Z":10
+	}
+	var best := letters[0]
+	for l in letters:
+		if letter_pts.get(l, 0) > letter_pts.get(best, 0):
+			best = l
+	await get_tree().create_timer(1.0).timeout
+	if is_instance_valid(picker):
+		picker.letter_picked.emit(best)
+
+func _autoplay_pick_upgrade_dialog(dialog: UpgradeDialog, upgrade_id: String) -> void:
+	await get_tree().create_timer(1.0).timeout
+	if is_instance_valid(dialog):
+		dialog.upgrade_picked.emit(upgrade_id)
 
 func _on_game_over(final_round: int, final_round_score: int, final_target: int) -> void:
 	_autoplay_active = false
@@ -360,7 +434,7 @@ func _run_autoplay(strategy) -> void:
 	# but reading live state from Board/Rack/RunState.
 	var adapter := _AutoplayAdapter.new(board, rack)
 	while _autoplay_active and not RunState.is_game_over:
-		if RunState.is_transitioning:
+		if RunState.is_transitioning or RunState.is_upgrading:
 			await get_tree().create_timer(0.2).timeout
 			continue
 		adapter.refresh(RunState.tiles_per_turn)
@@ -377,7 +451,7 @@ func _run_autoplay(strategy) -> void:
 			continue
 		var placed_any := false
 		for move in moves:
-			if not _autoplay_active or RunState.is_game_over or RunState.is_transitioning:
+			if not _autoplay_active or RunState.is_game_over or RunState.is_transitioning or RunState.is_upgrading:
 				break
 			var cell := board.get_cell(move.pos)
 			if cell == null or not cell.is_empty():

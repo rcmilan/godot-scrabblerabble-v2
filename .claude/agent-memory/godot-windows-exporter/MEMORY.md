@@ -1,0 +1,1 @@
+- [Project Export Audit](project-export-audit.md) — Blocking issues, template version, asset status, preset missing — full audit 2026-06-06
