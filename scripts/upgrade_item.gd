@@ -23,18 +23,23 @@ var upgrade_id: String = ""
 
 func _ready() -> void:
 	focus_mode          = FOCUS_ALL
-	custom_minimum_size = Vector2(0.0, BODY_SIZE.y + 8.0)
+	custom_minimum_size = Vector2(BODY_SIZE.x, BODY_SIZE.y + 8.0)
 	mouse_filter        = MOUSE_FILTER_STOP
 	focus_entered.connect(queue_redraw)
 	focus_exited.connect(queue_redraw)
 	# Suppress Godot's default focus StyleBox so it doesn't draw a caret.
 	add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	# Ensure no child node can steal focus or render its own caret.
+	for child in get_children():
+		if child is Control:
+			(child as Control).focus_mode   = FOCUS_NONE
+			(child as Control).mouse_filter = MOUSE_FILTER_IGNORE
 
 func _draw() -> void:
 	var body_x   := (size.x - BODY_SIZE.x) * 0.5
 	var body_rect := Rect2(Vector2(body_x, 4.0), BODY_SIZE)
 	_draw_mod2x_body(body_rect)
-	if has_focus():
+	if has_focus() and size.x >= 4.0 and size.y >= 4.0:
 		draw_rect(Rect2(Vector2.ZERO, size), C_FOCUS_BORDER, false, 2.0)
 
 func _gui_input(event: InputEvent) -> void:
