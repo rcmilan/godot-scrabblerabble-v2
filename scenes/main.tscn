@@ -147,13 +147,14 @@ size_flags_horizontal = 4
 alignment = 1
 script = ExtResource("3_rack")
 
-[node name="UpgradeColumn" parent="WinFrame/InnerVBox/GameArea" instance=ExtResource("7_ucol")]
+[node name="UpgradeColumn" parent="WinFrame" instance=ExtResource("7_ucol")]
 unique_name_in_owner = true
 layout_mode = 0
-anchor_top = 0.5
-anchor_bottom = 0.5
+anchor_left = 0.0
+anchor_top = 0.0
+anchor_right = 0.0
+anchor_bottom = 1.0
 offset_left = 4.0
-offset_top = -80.0
+offset_top = 52.0
 offset_right = 114.0
-offset_bottom = 80.0
-grow_vertical = 2
+offset_bottom = -4.0

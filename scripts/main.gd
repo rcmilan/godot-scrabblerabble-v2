@@ -17,7 +17,6 @@ const CORNER_SPIRAL_STRATEGY := preload("res://scripts/sim/strategies/corner_spi
 const AUTOPLAY_STEP_MS: int = 200
 
 var _autoplay_active: bool = false
-var _focus_mode: String = "board"  # "board" or "column"
 
 @onready var board:            Board         = %Board
 @onready var rack:             Rack          = %Rack
@@ -40,6 +39,7 @@ func _ready() -> void:
 	RunState.round_won.connect(_on_round_won)
 	RunState.game_over.connect(_on_game_over)
 	_upgrade_column.upgrade_picked.connect(_on_upgrade_picked)
+	_upgrade_column.request_board_focus.connect(func(): board.focus_cell(cursor))
 	_update_hud()
 	_maybe_start_autoplay()
 
@@ -48,31 +48,15 @@ func _on_cell_focused(cell: BoardCell) -> void:
 
 # ---------- Input ----------
 func _unhandled_input(event: InputEvent) -> void:
-	# While the game over dialog is up, all input belongs to it.
 	if RunState.is_game_over or RunState.is_transitioning:
 		return
-
-	# Column mode: navigate / pick upgrades; Escape or right returns to board.
-	if _focus_mode == "column" and _upgrade_column.visible and not _upgrade_column.is_empty():
-		if event.is_action_pressed("ui_up"):
-			_upgrade_column.move_selection(-1)
-			get_viewport().set_input_as_handled()
-		elif event.is_action_pressed("ui_down"):
-			_upgrade_column.move_selection(1)
-			get_viewport().set_input_as_handled()
-		elif event.is_action_pressed("ui_right") or event.is_action_pressed("ui_cancel"):
-			_focus_mode = "board"
-			board.focus_cell(cursor)
-			get_viewport().set_input_as_handled()
-		elif event.is_action_pressed("ui_accept"):
-			_upgrade_column.pick_focused()
-			get_viewport().set_input_as_handled()
+	# Upgrade items handle their own arrow keys via _gui_input; don't double-move.
+	if _upgrade_column.has_focused_item():
 		return
 
-	# Board mode: pressing left from column x=0 enters the column when it's visible.
 	if event.is_action_pressed("ui_left"):
 		if _upgrade_column.visible and not _upgrade_column.is_empty() and cursor.x == 0:
-			_focus_mode = "column"
+			_upgrade_column.focus_first()
 			get_viewport().set_input_as_handled()
 		else:
 			_move_cursor(Vector2i(-1, 0))
@@ -314,12 +298,11 @@ func _maybe_show_upgrade_column() -> void:
 func _autoplay_pick_upgrade() -> void:
 	await get_tree().create_timer(1.0).timeout
 	if is_instance_valid(_upgrade_column) and not _upgrade_column.is_empty():
-		_upgrade_column.pick_focused()
+		_upgrade_column.pick_first()
 
 func _on_upgrade_picked(id: String) -> void:
 	RunState.add_to_build(id)
 	rack.refill()
-	_focus_mode = "board"
 	board.focus_cell(cursor)
 	_update_hud()
 
