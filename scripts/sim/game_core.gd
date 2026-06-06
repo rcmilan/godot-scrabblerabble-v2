@@ -16,6 +16,7 @@ const UPGRADE_EVERY_N_ROUNDS: int = 3
 
 const MOD_NONE: String = ""
 const MOD_2X:   String = "2x"
+const MOD_3X:   String = "3x"
 
 # Letter distribution and points (from GameData, embedded here for headless mode)
 const LETTER_DISTRIBUTION = {
@@ -211,8 +212,8 @@ func end_turn(pending_positions: Array) -> int:
 			for l in options:
 				if LETTER_POINTS.get(l, 0) > LETTER_POINTS.get(best, 0):
 					best = l
-			letter_modifiers[best] = MOD_2X
-			print("[GameCore] upgrade auto-pick — %s → %s" % [MOD_2X, best])
+			letter_modifiers[best] = MOD_3X
+			print("[GameCore] upgrade auto-pick — %s → %s" % [MOD_3X, best])
 	elif turns_left <= 0:
 		is_game_over = true
 	refill_rack()
@@ -253,8 +254,11 @@ func _calculate_turn_score(pending_positions: Array) -> int:
 							var ch: String = w.text[i]
 							var cell_pos: Vector2i = w.cells[i]
 							var letter_pts: int = LETTER_POINTS.get(ch.to_upper(), 0)
-							if board_modifiers[cell_pos.x][cell_pos.y] == MOD_2X:
+							var mod: String = board_modifiers[cell_pos.x][cell_pos.y]
+							if mod == MOD_2X:
 								letter_pts *= 2
+							elif mod == MOD_3X:
+								letter_pts *= 3
 							sub_points += letter_pts
 						# Apply word bonus if at least one new tile in sub-word
 						var has_new_tile := false
@@ -272,8 +276,11 @@ func _calculate_turn_score(pending_positions: Array) -> int:
 					var ch: String = w.text[i]
 					var cell_pos: Vector2i = w.cells[i]
 					var letter_pts: int = LETTER_POINTS.get(ch.to_upper(), 0)
-					if board_modifiers[cell_pos.x][cell_pos.y] == MOD_2X:
+					var mod: String = board_modifiers[cell_pos.x][cell_pos.y]
+					if mod == MOD_2X:
 						letter_pts *= 2
+					elif mod == MOD_3X:
+						letter_pts *= 3
 					letter_points += letter_pts
 				total += letter_points
 	return total
@@ -284,8 +291,11 @@ func _score_word_sim(w: Dictionary) -> int:
 		var ch: String = (w.text as String)[i]
 		var cell_pos: Vector2i = w.cells[i]
 		var letter_pts: int = LETTER_POINTS.get(ch.to_upper(), 0)
-		if board_modifiers[cell_pos.x][cell_pos.y] == MOD_2X:
+		var mod: String = board_modifiers[cell_pos.x][cell_pos.y]
+		if mod == MOD_2X:
 			letter_pts *= 2
+		elif mod == MOD_3X:
+			letter_pts *= 3
 		word_points += letter_pts
 	word_points *= WORD_BONUS_MULTIPLIER
 	return word_points

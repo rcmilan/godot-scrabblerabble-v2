@@ -181,9 +181,13 @@ func _calculate_turn_score() -> int:
 							var ch: String = w.text[i]
 							var cell: BoardCell = w.cells[i]
 							var letter_pts: int = GameData.score_for_letter(ch)
-							if cell.get_modifier() == GameData.MOD_2X:
+							var mod := cell.get_modifier()
+							if mod == GameData.MOD_2X:
 								letter_pts *= 2
 								sub_mods.append("2x@%d" % (i - start_idx))
+							elif mod == GameData.MOD_3X:
+								letter_pts *= 3
+								sub_mods.append("3x@%d" % (i - start_idx))
 							sub_points += letter_pts
 						# Apply word bonus if at least one new tile in sub-word
 						var has_new_tile := false
@@ -204,9 +208,13 @@ func _calculate_turn_score() -> int:
 					var ch: String = w.text[i]
 					var cell: BoardCell = w.cells[i]
 					var letter_pts: int = GameData.score_for_letter(ch)
-					if cell.get_modifier() == GameData.MOD_2X:
+					var mod := cell.get_modifier()
+					if mod == GameData.MOD_2X:
 						letter_pts *= 2
 						mods_parts.append("2x@%d" % i)
+					elif mod == GameData.MOD_3X:
+						letter_pts *= 3
+						mods_parts.append("3x@%d" % i)
 					letter_points += letter_pts
 				var mods_str := ", ".join(mods_parts) if mods_parts.size() > 0 else "none"
 				print("invalid: %s = %d points (modifiers: %s)" % [w.text, letter_points, mods_str])
@@ -215,14 +223,15 @@ func _calculate_turn_score() -> int:
 
 func _score_word(w: Dictionary) -> int:
 	var word_points := 0
-	var mods_parts: Array = []
 	for i in (w.text as String).length():
 		var ch: String = (w.text as String)[i]
 		var cell: BoardCell = w.cells[i]
 		var letter_pts: int = GameData.score_for_letter(ch)
-		if cell.get_modifier() == GameData.MOD_2X:
+		var mod := cell.get_modifier()
+		if mod == GameData.MOD_2X:
 			letter_pts *= 2
-			mods_parts.append("2x@%d" % i)
+		elif mod == GameData.MOD_3X:
+			letter_pts *= 3
 		word_points += letter_pts
 	word_points *= WORD_BONUS_MULTIPLIER
 	return word_points
@@ -231,8 +240,11 @@ func _get_modifiers_str(w: Dictionary) -> String:
 	var mods_parts: Array = []
 	for i in (w.text as String).length():
 		var cell: BoardCell = w.cells[i]
-		if cell.get_modifier() == GameData.MOD_2X:
+		var mod := cell.get_modifier()
+		if mod == GameData.MOD_2X:
 			mods_parts.append("2x@%d" % i)
+		elif mod == GameData.MOD_3X:
+			mods_parts.append("3x@%d" % i)
 	return ", ".join(mods_parts) if mods_parts.size() > 0 else "none"
 
 func _extract_word_in_direction(cell: BoardCell, dir: Vector2i) -> Dictionary:
@@ -284,6 +296,7 @@ func _on_transition_finished() -> void:
 func _show_upgrade_dialog() -> void:
 	var upgrades: Array[Dictionary] = [
 		{"id": GameData.MOD_2X, "label": "2x Tile", "desc": "+1 guaranteed 2x tile"},
+		{"id": GameData.MOD_3X, "label": "3x Tile", "desc": "+1 guaranteed 3x tile"},
 	]
 	RunState.is_upgrading = true
 	print("[UpgradeDialog] upgrade offered — round %d" % RunState.current_round)
@@ -368,7 +381,7 @@ func _autoplay_pick_letter(picker: Node, letters: Array[String]) -> void:
 func _autoplay_pick_upgrade_dialog(dialog: UpgradeDialog) -> void:
 	await get_tree().create_timer(1.0).timeout
 	if is_instance_valid(dialog):
-		dialog.upgrade_picked.emit(GameData.MOD_2X)
+		dialog.upgrade_picked.emit(GameData.MOD_3X)
 
 func _on_game_over(final_round: int, final_round_score: int, final_target: int) -> void:
 	_autoplay_active = false

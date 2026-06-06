@@ -15,6 +15,8 @@ const C_INNER_DARK           := Color("#808080")
 const C_OUTER_DARK           := Color("#0A0A0A")
 const C_MOD_GRADIENT_LEFT    := Color(0.0,        0.0,         0.5019, 1.0)
 const C_MOD_GRADIENT_RIGHT   := Color(16.0/255.0, 132.0/255.0, 208.0/255.0, 1.0)
+const C_MOD3X_GRADIENT_LEFT  := Color(0.0,        0.376, 0.0,   1.0)
+const C_MOD3X_GRADIENT_RIGHT := Color(0.188,       0.753, 0.188, 1.0)
 const C_LABEL                := Color(1.0, 1.0, 1.0, 1.0)
 const C_FOCUS_BORDER         := Color(1.0, 1.0, 0.0, 1.0)
 
@@ -38,7 +40,10 @@ func _ready() -> void:
 func _draw() -> void:
 	var body_x   := (size.x - BODY_SIZE.x) * 0.5
 	var body_rect := Rect2(Vector2(body_x, 4.0), BODY_SIZE)
-	_draw_mod2x_body(body_rect)
+	if upgrade_id == GameData.MOD_3X:
+		_draw_mod3x_body(body_rect)
+	else:
+		_draw_mod2x_body(body_rect)
 	if has_focus() and size.x >= 4.0 and size.y >= 4.0:
 		draw_rect(Rect2(Vector2.ZERO, size), C_FOCUS_BORDER, false, 2.0)
 
@@ -66,6 +71,22 @@ func _gui_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 
 # --- drawing helpers (mirrors desktop_icon.gd) ---
+
+func _draw_mod3x_body(rect: Rect2) -> void:
+	_draw_horizontal_gradient(
+		Rect2(rect.position + Vector2(1, 1), rect.size - Vector2(2, 2)),
+		C_MOD3X_GRADIENT_LEFT, C_MOD3X_GRADIENT_RIGHT)
+	_draw_win95_bevel(rect)
+	var font := get_theme_default_font()
+	if font:
+		var size_px  := 28
+		var text      = "3x"
+		var text_size := font.get_string_size(text, HORIZONTAL_ALIGNMENT_CENTER, -1, size_px)
+		var center    := rect.position + rect.size * 0.5
+		var baseline  := center + Vector2(-text_size.x * 0.5,
+				font.get_ascent(size_px) - text_size.y * 0.5)
+		draw_string(font, baseline, text,
+				HORIZONTAL_ALIGNMENT_LEFT, -1, size_px, C_LABEL)
 
 func _draw_mod2x_body(rect: Rect2) -> void:
 	_draw_horizontal_gradient(
