@@ -6,6 +6,7 @@ const WORD_BONUS_MULTIPLIER: int = 2
 const GLITTER_SCENE          := preload("res://scenes/glitter_emitter.tscn")
 const GAME_OVER_SCENE        := preload("res://scenes/game_over_dialog.tscn")
 const ROUND_TRANSITION_SCENE := preload("res://scenes/round_transition.tscn")
+const UPGRADE_DIALOG_SCENE   := preload("res://scenes/upgrade_dialog.tscn")
 
 const WORD_SEARCH_STRATEGY      := preload("res://scripts/sim/strategies/word_search_strategy.gd")
 const GREEDY_STRATEGY           := preload("res://scripts/sim/strategies/greedy_strategy.gd")
@@ -18,12 +19,11 @@ const AUTOPLAY_STEP_MS: int = 200
 
 var _autoplay_active: bool = false
 
-@onready var board:            Board         = %Board
-@onready var rack:             Rack          = %Rack
-@onready var score_label:      Label         = %ScoreLabel
-@onready var tiles_left_label: Label         = %TilesLeftLabel
-@onready var end_turn_button:  Button        = %EndTurnButton
-@onready var _upgrade_column:  UpgradeColumn = %UpgradeColumn
+@onready var board:            Board  = %Board
+@onready var rack:             Rack   = %Rack
+@onready var score_label:      Label  = %ScoreLabel
+@onready var tiles_left_label: Label  = %TilesLeftLabel
+@onready var end_turn_button:  Button = %EndTurnButton
 
 var pending_cells: Array[BoardCell] = []
 var cursor:        Vector2i = Vector2i(0, 0)
@@ -38,8 +38,6 @@ func _ready() -> void:
 	RunState.reset()
 	RunState.round_won.connect(_on_round_won)
 	RunState.game_over.connect(_on_game_over)
-	_upgrade_column.upgrade_picked.connect(_on_upgrade_picked)
-	_upgrade_column.request_board_focus.connect(func(): board.focus_cell(cursor))
 	_update_hud()
 	_maybe_start_autoplay()
 
@@ -48,19 +46,12 @@ func _on_cell_focused(cell: BoardCell) -> void:
 
 # ---------- Input ----------
 func _unhandled_input(event: InputEvent) -> void:
-	if RunState.is_game_over or RunState.is_transitioning:
-		return
-	# Upgrade items handle their own arrow keys via _gui_input; don't double-move.
-	if _upgrade_column.has_focused_item():
+	if RunState.is_game_over or RunState.is_transitioning or RunState.is_upgrading:
 		return
 
 	if event.is_action_pressed("ui_left"):
-		if _upgrade_column.visible and not _upgrade_column.is_empty() and cursor.x == 0:
-			_upgrade_column.focus_first()
-			get_viewport().set_input_as_handled()
-		else:
-			_move_cursor(Vector2i(-1, 0))
-			get_viewport().set_input_as_handled()
+		_move_cursor(Vector2i(-1, 0))
+		get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("ui_right"):
 		_move_cursor(Vector2i(1, 0))
 		get_viewport().set_input_as_handled()
@@ -95,7 +86,7 @@ func _try_place_letter_on_cursor(letter: String) -> void:
 
 # ---------- Drag and drop ----------
 func on_tile_dropped_on_cell(tile: Tile, cell: BoardCell) -> void:
-	if RunState.is_transitioning or not cell.is_empty():
+	if RunState.is_transitioning or RunState.is_upgrading or not cell.is_empty():
 		return
 	_place_tile_on_cell(tile, cell)
 
@@ -284,27 +275,52 @@ func _on_round_won(round_num: int, _round_score: int, _target: int) -> void:
 
 func _on_transition_finished() -> void:
 	RunState.is_transitioning = false
-	_maybe_show_upgrade_column()
-	board.focus_cell(cursor)
+	if RunState.is_upgrade_due():
+		_show_upgrade_dialog()
+	else:
+		board.focus_cell(cursor)
 
-func _maybe_show_upgrade_column() -> void:
-	if not RunState.is_upgrade_due():
-		return
-	_upgrade_column.add_upgrade({"id": GameData.MOD_2X, "label": "2x Tile", "desc": "+1 guaranteed 2x tile"})
-	print("[UpgradeColumn] upgrade offered — round %d" % RunState.current_round)
+func _show_upgrade_dialog() -> void:
+	var upgrades: Array[Dictionary] = [
+		{"id": GameData.MOD_2X, "label": "2x Tile", "desc": "+1 guaranteed 2x tile"},
+	]
+	RunState.is_upgrading = true
+	print("[UpgradeDialog] upgrade offered — round %d" % RunState.current_round)
+
+	var dialog: Panel = UPGRADE_DIALOG_SCENE.instantiate()
+	var layer := CanvasLayer.new()
+	layer.layer = 50
+	add_child(layer)
+	layer.add_child(dialog)
+
+	# Center dialog; use custom_minimum_size since size is (0,0) before first layout pass.
+	var vp_size := get_viewport().get_visible_rect().size
+	dialog.position = (vp_size - dialog.custom_minimum_size) / 2.0
+
+	dialog.populate(upgrades)
+	dialog.focus_first()
+
+	dialog.upgrade_picked.connect(func(id: String) -> void:
+		layer.queue_free()
+		RunState.is_upgrading = false
+		RunState.add_to_build(id)
+		rack.refill()
+		board.focus_cell(cursor)
+		_update_hud()
+	)
+	dialog.skipped.connect(func() -> void:
+		layer.queue_free()
+		RunState.is_upgrading = false
+		board.focus_cell(cursor)
+	)
+
 	if _autoplay_active:
-		_autoplay_pick_upgrade()
+		_autoplay_pick_upgrade_dialog(dialog)
 
-func _autoplay_pick_upgrade() -> void:
+func _autoplay_pick_upgrade_dialog(dialog: UpgradeDialog) -> void:
 	await get_tree().create_timer(1.0).timeout
-	if is_instance_valid(_upgrade_column) and not _upgrade_column.is_empty():
-		_upgrade_column.pick_first()
-
-func _on_upgrade_picked(id: String) -> void:
-	RunState.add_to_build(id)
-	rack.refill()
-	board.focus_cell(cursor)
-	_update_hud()
+	if is_instance_valid(dialog):
+		dialog.upgrade_picked.emit(GameData.MOD_2X)
 
 func _on_game_over(final_round: int, final_round_score: int, final_target: int) -> void:
 	_autoplay_active = false
@@ -357,7 +373,7 @@ func _run_autoplay(strategy) -> void:
 	# but reading live state from Board/Rack/RunState.
 	var adapter := _AutoplayAdapter.new(board, rack)
 	while _autoplay_active and not RunState.is_game_over:
-		if RunState.is_transitioning:
+		if RunState.is_transitioning or RunState.is_upgrading:
 			await get_tree().create_timer(0.2).timeout
 			continue
 		adapter.refresh(RunState.tiles_per_turn)
@@ -374,7 +390,7 @@ func _run_autoplay(strategy) -> void:
 			continue
 		var placed_any := false
 		for move in moves:
-			if not _autoplay_active or RunState.is_game_over or RunState.is_transitioning:
+			if not _autoplay_active or RunState.is_game_over or RunState.is_transitioning or RunState.is_upgrading:
 				break
 			var cell := board.get_cell(move.pos)
 			if cell == null or not cell.is_empty():

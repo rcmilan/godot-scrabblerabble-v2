@@ -186,8 +186,9 @@ func end_turn(pending_positions: Array) -> int:
 	turns_left -= 1
 	if round_score >= target_score:
 		_advance_round()
-		# Mirror the upgrade-column auto-pick: at each UPGRADE_EVERY_N_ROUNDS interval
+		# Mirror the upgrade-dialog auto-pick: at each UPGRADE_EVERY_N_ROUNDS interval
 		# the sim automatically adds one MOD_2X to the build, matching player behaviour.
+		# Upgrades do NOT carry over — each eligible round offers exactly one pick.
 		if current_round > 1 and (current_round - 1) % UPGRADE_EVERY_N_ROUNDS == 0:
 			modifier_build[MOD_2X] = modifier_build.get(MOD_2X, 0) + 1
 	elif turns_left <= 0:

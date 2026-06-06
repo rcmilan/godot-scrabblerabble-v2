@@ -18,6 +18,7 @@ var turns_left:     int   = TURNS_PER_ROUND
 var tiles_per_turn: int   = INITIAL_TILES_PER_TURN
 var is_game_over:   bool  = false
 var is_transitioning: bool = false
+var is_upgrading:   bool  = false
 var history:        Array = []
 var modifier_build: Dictionary = {}   # { "2x": int, ... }  keyed by mod constant
 
@@ -31,6 +32,7 @@ func reset() -> void:
 	tiles_per_turn = INITIAL_TILES_PER_TURN
 	is_game_over   = false
 	is_transitioning = false
+	is_upgrading   = false
 	history.clear()
 	modifier_build.clear()
 	_t_prev      = 0.0
