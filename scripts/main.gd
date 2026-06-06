@@ -6,7 +6,6 @@ const WORD_BONUS_MULTIPLIER: int = 2
 const GLITTER_SCENE          := preload("res://scenes/glitter_emitter.tscn")
 const GAME_OVER_SCENE        := preload("res://scenes/game_over_dialog.tscn")
 const ROUND_TRANSITION_SCENE := preload("res://scenes/round_transition.tscn")
-const DESKTOP_SCENE          := preload("res://scenes/desktop.tscn")
 
 const WORD_SEARCH_STRATEGY      := preload("res://scripts/sim/strategies/word_search_strategy.gd")
 const GREEDY_STRATEGY           := preload("res://scripts/sim/strategies/greedy_strategy.gd")
@@ -18,12 +17,14 @@ const CORNER_SPIRAL_STRATEGY := preload("res://scripts/sim/strategies/corner_spi
 const AUTOPLAY_STEP_MS: int = 200
 
 var _autoplay_active: bool = false
+var _focus_mode: String = "board"  # "board" or "column"
 
-@onready var board:            Board  = %Board
-@onready var rack:             Rack   = %Rack
-@onready var score_label:      Label  = %ScoreLabel
-@onready var tiles_left_label: Label  = %TilesLeftLabel
-@onready var end_turn_button:  Button = %EndTurnButton
+@onready var board:            Board         = %Board
+@onready var rack:             Rack          = %Rack
+@onready var score_label:      Label         = %ScoreLabel
+@onready var tiles_left_label: Label         = %TilesLeftLabel
+@onready var end_turn_button:  Button        = %EndTurnButton
+@onready var _upgrade_column:  UpgradeColumn = %UpgradeColumn
 
 var pending_cells: Array[BoardCell] = []
 var cursor:        Vector2i = Vector2i(0, 0)
@@ -38,6 +39,7 @@ func _ready() -> void:
 	RunState.reset()
 	RunState.round_won.connect(_on_round_won)
 	RunState.game_over.connect(_on_game_over)
+	_upgrade_column.upgrade_picked.connect(_on_upgrade_picked)
 	_update_hud()
 	_maybe_start_autoplay()
 
@@ -49,9 +51,32 @@ func _unhandled_input(event: InputEvent) -> void:
 	# While the game over dialog is up, all input belongs to it.
 	if RunState.is_game_over or RunState.is_transitioning:
 		return
+
+	# Column mode: navigate / pick upgrades; Escape or right returns to board.
+	if _focus_mode == "column" and _upgrade_column.visible and not _upgrade_column.is_empty():
+		if event.is_action_pressed("ui_up"):
+			_upgrade_column.move_selection(-1)
+			get_viewport().set_input_as_handled()
+		elif event.is_action_pressed("ui_down"):
+			_upgrade_column.move_selection(1)
+			get_viewport().set_input_as_handled()
+		elif event.is_action_pressed("ui_right") or event.is_action_pressed("ui_cancel"):
+			_focus_mode = "board"
+			board.focus_cell(cursor)
+			get_viewport().set_input_as_handled()
+		elif event.is_action_pressed("ui_accept"):
+			_upgrade_column.pick_focused()
+			get_viewport().set_input_as_handled()
+		return
+
+	# Board mode: pressing left from column x=0 enters the column when it's visible.
 	if event.is_action_pressed("ui_left"):
-		_move_cursor(Vector2i(-1, 0))
-		get_viewport().set_input_as_handled()
+		if _upgrade_column.visible and not _upgrade_column.is_empty() and cursor.x == 0:
+			_focus_mode = "column"
+			get_viewport().set_input_as_handled()
+		else:
+			_move_cursor(Vector2i(-1, 0))
+			get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("ui_right"):
 		_move_cursor(Vector2i(1, 0))
 		get_viewport().set_input_as_handled()
@@ -274,38 +299,27 @@ func _on_round_won(round_num: int, _round_score: int, _target: int) -> void:
 	transition.play(round_num)
 
 func _on_transition_finished() -> void:
-	if RunState.is_shop_due():
-		_open_shop()
-		# is_transitioning stays true until the shop closes.
-		return
 	RunState.is_transitioning = false
+	_maybe_show_upgrade_column()
 	board.focus_cell(cursor)
 
-func _open_shop() -> void:
-	var desktop := DESKTOP_SCENE.instantiate()
-	add_child(desktop)
-	desktop.resume_requested.connect(_on_shop_closed.bind(desktop))
-
-	# If autoplay is active, automatically pick a modifier and resume
+func _maybe_show_upgrade_column() -> void:
+	if not RunState.is_upgrade_due():
+		return
+	_upgrade_column.add_upgrade({"id": GameData.MOD_2X, "label": "2x Tile", "desc": "+1 guaranteed 2x tile"})
+	print("[UpgradeColumn] upgrade offered — round %d" % RunState.current_round)
 	if _autoplay_active:
-		await get_tree().create_timer(1.0).timeout  # Show shop for 1 second
-		if is_instance_valid(desktop):
-			await desktop.on_mod2x_picked()
-			await get_tree().create_timer(0.2).timeout
-			if is_instance_valid(desktop):
-				# Highlight scrabblerabble icon to show intent.
-				# Index 2 is ScrabblerabbleIcon in desktop.gd's _icons array.
-				desktop._set_icon_focused(2)
-				await get_tree().create_timer(0.5).timeout
-				if is_instance_valid(desktop):
-					desktop.resume_requested.emit()
+		_autoplay_pick_upgrade()
 
-func _on_shop_closed(desktop: Node) -> void:
-	desktop.queue_free()
-	# The player may have added modifiers to the build; force a refill
-	# so the new guarantees show up immediately, not on the next end-of-turn.
+func _autoplay_pick_upgrade() -> void:
+	await get_tree().create_timer(1.0).timeout
+	if is_instance_valid(_upgrade_column) and not _upgrade_column.is_empty():
+		_upgrade_column.pick_focused()
+
+func _on_upgrade_picked(id: String) -> void:
+	RunState.add_to_build(id)
 	rack.refill()
-	RunState.is_transitioning = false
+	_focus_mode = "board"
 	board.focus_cell(cursor)
 	_update_hud()
 

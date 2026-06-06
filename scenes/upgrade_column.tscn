@@ -1,0 +1,71 @@
+[gd_scene format=3 uid="uid://upgrade_column01"]
+
+[ext_resource type="Script" path="res://scripts/upgrade_column.gd" id="1_ucol"]
+
+[node name="UpgradeColumn" type="Panel"]
+visible = false
+custom_minimum_size = Vector2(110, 0)
+theme_type_variation = &"WindowFrame"
+script = ExtResource("1_ucol")
+
+[node name="InnerVBox" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 2.0
+offset_top = 2.0
+offset_right = -2.0
+offset_bottom = -2.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="TitleBar" type="Panel" parent="InnerVBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 22)
+theme_type_variation = &"TitleBar"
+
+[node name="TitleContent" type="HBoxContainer" parent="InnerVBox/TitleBar"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+offset_left = 4.0
+offset_right = -2.0
+
+[node name="TitleLabel" type="Label" parent="InnerVBox/TitleBar/TitleContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Upgrades"
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+
+[node name="WinButtons" type="HBoxContainer" parent="InnerVBox/TitleBar/TitleContent"]
+layout_mode = 2
+size_flags_horizontal = 8
+separation = 2
+
+[node name="MinBtn" type="Button" parent="InnerVBox/TitleBar/TitleContent/WinButtons"]
+layout_mode = 2
+custom_minimum_size = Vector2(16, 14)
+focus_mode = 0
+text = "-"
+flat = false
+
+[node name="MaxBtn" type="Button" parent="InnerVBox/TitleBar/TitleContent/WinButtons"]
+layout_mode = 2
+custom_minimum_size = Vector2(16, 14)
+focus_mode = 0
+text = "O"
+flat = false
+
+[node name="CloseBtn" type="Button" parent="InnerVBox/TitleBar/TitleContent/WinButtons"]
+layout_mode = 2
+custom_minimum_size = Vector2(16, 14)
+focus_mode = 0
+text = "X"
+flat = false
+
+[node name="BodyArea" type="VBoxContainer" parent="InnerVBox"]
+layout_mode = 2
+size_flags_vertical = 3

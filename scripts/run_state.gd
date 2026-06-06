@@ -9,7 +9,7 @@ signal game_over(final_round: int, final_round_score: int, final_target: int)
 const TURNS_PER_ROUND:        int = 3
 const INITIAL_TILES_PER_TURN: int = 4
 const INITIAL_TARGET_SCORE:   int = 20
-const SHOP_EVERY_N_ROUNDS:    int = 3
+const UPGRADE_EVERY_N_ROUNDS: int = 3
 
 var current_round:  int   = 1
 var round_score:    int   = 0
@@ -39,12 +39,12 @@ func reset() -> void:
 	print("[RunState] reset — round 1, target %d, %d tiles/turn" % [target_score, tiles_per_turn])
 	round_started.emit(current_round, target_score, turns_left)
 
-func is_shop_due() -> bool:
-	return current_round > 1 and (current_round - 1) % SHOP_EVERY_N_ROUNDS == 0
+func is_upgrade_due() -> bool:
+	return current_round > 1 and (current_round - 1) % UPGRADE_EVERY_N_ROUNDS == 0
 
 func add_to_build(mod: String) -> void:
 	modifier_build[mod] = modifier_build.get(mod, 0) + 1
-	print("[Shop] build += %s (total %d)" % [mod, modifier_build[mod]])
+	print("[RunState] build += %s (total %d)" % [mod, modifier_build[mod]])
 
 func register_turn_score(points: int) -> void:
 	round_score += points

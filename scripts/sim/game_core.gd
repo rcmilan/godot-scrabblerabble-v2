@@ -12,7 +12,7 @@ const INITIAL_TARGET_SCORE:   int = 20
 const WORD_BONUS_MULTIPLIER:  int = 2
 const BOARD_SIZE:             int = 8
 const RACK_SIZE:              int = 7
-const SHOP_EVERY_N_ROUNDS:    int = 3
+const UPGRADE_EVERY_N_ROUNDS: int = 3
 
 const MOD_NONE: String = ""
 const MOD_2X:   String = "2x"
@@ -80,16 +80,12 @@ var is_game_over:   bool  = false
 # Modifier build state.
 var modifier_build: Dictionary = {}
 
-# Shop interval automation.
-var shop_strategy: String = "default"  # "default", "always_pick", "never_pick"
-
 # Target curve state.
 var _t_prev: float = 0.0
 var _t_curr: float = float(INITIAL_TARGET_SCORE)
 
-func _init(seed: int, build: Dictionary = {}, shop_str: String = "default") -> void:
+func _init(seed: int, build: Dictionary = {}) -> void:
 	modifier_build = build.duplicate()
-	shop_strategy = shop_str
 	rng = RandomNumberGenerator.new()
 	rng.seed = seed
 	_init_board()
@@ -159,17 +155,6 @@ func _ensure_modifier_count_in_rack(mod: String, required_count: int) -> void:
 		rack[target_idx].modifier = mod
 		have += 1
 
-func auto_pick_modifiers() -> void:
-	# Automatically pick modifiers at shop intervals based on shop_strategy.
-	if shop_strategy == "never_pick":
-		return
-	# Check if shop is due at current_round (after _advance_round)
-	if current_round > 1 and (current_round - 1) % SHOP_EVERY_N_ROUNDS == 0:
-		# Always pick MOD_2X: 1 at each shop interval
-		if not modifier_build.has(MOD_2X):
-			modifier_build[MOD_2X] = 0
-		modifier_build[MOD_2X] += 1
-
 func is_cell_empty(pos: Vector2i) -> bool:
 	if pos.x < 0 or pos.x >= BOARD_SIZE or pos.y < 0 or pos.y >= BOARD_SIZE:
 		return false
@@ -201,7 +186,10 @@ func end_turn(pending_positions: Array) -> int:
 	turns_left -= 1
 	if round_score >= target_score:
 		_advance_round()
-		auto_pick_modifiers()
+		# Mirror the upgrade-column auto-pick: at each UPGRADE_EVERY_N_ROUNDS interval
+		# the sim automatically adds one MOD_2X to the build, matching player behaviour.
+		if current_round > 1 and (current_round - 1) % UPGRADE_EVERY_N_ROUNDS == 0:
+			modifier_build[MOD_2X] = modifier_build.get(MOD_2X, 0) + 1
 	elif turns_left <= 0:
 		is_game_over = true
 	refill_rack()
