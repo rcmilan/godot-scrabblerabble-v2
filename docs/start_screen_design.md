@@ -79,11 +79,10 @@ script constants in `start_screen.gd`.
 ## CRT overlay
 
 The start screen uses the **same CRT overlay** (scanlines + vignette +
-chromatic aberration, CanvasLayer 100) as the game. The overlay is
-currently built inline in `scenes/main.tscn`; extract it to
-`scenes/crt_overlay.tscn` and instance it in both scenes so the two
-copies can't drift. Ghost stamps render under it and get scanlined for
-free.
+chromatic aberration, CanvasLayer 100) as the game. It already exists
+as a shared scene — `scenes/crt_overlay.tscn`, instanced by
+`scenes/main.tscn` (line 35) — so the start screen just instances it
+too. Ghost stamps render under it and get scanlined for free.
 
 ## Game-over dialog change
 
