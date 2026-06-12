@@ -10,6 +10,7 @@ const GHOST_STEP_SEC:    float = 0.06
 @onready var start_button: Button = $TitleDialog/InnerVBox/BodyArea/ButtonRow/StartButton
 @onready var quit_button:  Button = $TitleDialog/InnerVBox/BodyArea/ButtonRow/QuitButton
 @onready var close_btn:    Button = $TitleDialog/InnerVBox/TitleBar/TitleContent/WinButtons/CloseBtn
+@onready var subtitle:     Label  = $TitleDialog/InnerVBox/BodyArea/Subtitle
 
 var _launching: bool = false
 
@@ -20,8 +21,24 @@ func _ready() -> void:
 	quit_button.pressed.connect(_on_quit_pressed)
 	close_btn.pressed.connect(_on_quit_pressed)
 	start_button.grab_focus()
+	_set_random_subtitle()
 	print("[StartScreen] ready — menu shown")
 	_maybe_autoplay()
+
+func _set_random_subtitle() -> void:
+	# GameData may be unavailable in unusual launch paths; keep the scene's
+	# static subtitle as the fallback.
+	var game_data := get_node_or_null("/root/GameData")
+	if game_data == null or game_data.valid_words.is_empty():
+		return
+	var all_words: Array = game_data.valid_words.keys()
+	var picked: Array[String] = []
+	while picked.size() < 3:
+		var w: String = all_words.pick_random()
+		if not picked.has(w):
+			picked.append(w)
+	subtitle.text = " · ".join(picked)
+	print("[StartScreen] subtitle words — %s" % ", ".join(picked))
 
 func _on_start_pressed() -> void:
 	if _launching:
