@@ -53,11 +53,16 @@ func _play_launch_glitch() -> void:
 	var ghost_count := 0
 	for i in GHOST_STEPS:
 		var ghost := title_dialog.duplicate() as Panel
-		ghost.position = title_dialog.position
 		ghost.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		ghost.set_process(false)
 		ghost.set_process_input(false)
 		$GhostLayer.add_child(ghost)
+		# The duplicate inherits TitleDialog's center anchors; reset to
+		# top-left so position is absolute, or the anchor math re-adds
+		# the parent's center and dumps the ghost at the bottom-right.
+		ghost.set_anchors_preset(Control.PRESET_TOP_LEFT)
+		ghost.position = title_dialog.position
+		ghost.size = title_dialog.size
 		ghost_count += 1
 		if i % 2 == 0:
 			title_dialog.position.x += GHOST_STEP_PX
