@@ -16,10 +16,8 @@ floating title dialog. Pressing Start triggers a once-per-launch
 - Start → `get_tree().change_scene_to_file("res://scenes/main.tscn")`.
 - The in-game restart flow (`RunState.reset()` + `reload_current_scene()`)
   is unchanged — reloading `main.tscn` never resurrects the start screen.
-- **`--autoplay` passthrough:** `main.gd::_maybe_start_autoplay` checks a
-  CLI flag in `_ready`. The start screen must detect the same flag and skip
-  straight to `main.tscn` (no menu, no glitch) so headless/autoplay runs
-  keep working.
+- **`--autoplay` runs drive the menu like a user** — see
+  "Simulation / autoplay mode" below.
 
 ## Composition
 
@@ -95,6 +93,81 @@ instead of quitting the app — `RunState.reset()` +
 "Quit" (it quits the run). Restart remains the fast play-again path.
 App exit lives only on the title screen.
 
+## Simulation / autoplay mode
+
+The project's "simulation mode" serves as informal end-to-end coverage
+(there is no formal assert harness on the process). Three entry points,
+affected differently:
+
+### 1. `sim_runner.gd` / `tests/run_tests.gd` (`--script`) — unaffected
+
+Both extend `SceneTree` and never load the main scene, so the start
+screen cannot affect them. `game_core.gd` needs no changes: nothing in
+this design touches scoring, progression, tile draw, or any mirrored
+constant. No new sim test cases.
+
+### 2. `--autoplay=<strategy>` — drives the start screen like a user
+
+The main scene is now `start_screen.tscn`, so autoplay runs pass
+through it. Decision: autoplay exercises the full menu path rather
+than bypassing it.
+
+- `start_screen.gd::_ready` checks `OS.get_cmdline_user_args()` for
+  `--autoplay` / `--autoplay=` (same parsing as
+  `main.gd::_autoplay_strategy_arg`). If present, it waits a short
+  beat, then programmatically presses Start via the same handler a
+  user would hit.
+- **The launch glitch plays in full, unmodified** — no skip flag, no
+  speed-up. A hung tween shows up as a missing "launching main scene"
+  log line and a run that never reaches gameplay, which is the signal
+  we want. Cost: ~1.4 s once per run.
+- Tweens and `duplicate()` work under `--headless` (the SceneTree
+  still processes; nothing is rendered), so this runs in CI.
+
+### 3. End of an autoplay run — close the loop
+
+Today an autoplay run stops at the game-over dialog and sits until the
+process is killed. New behavior, in autoplay mode only:
+
+- When the game-over dialog appears, auto-press **Quit** after a short
+  delay (same pattern as `_autoplay_pick_upgrade_dialog`). This
+  exercises the new game-over → title transition.
+- Back at the start screen, the run terminates cleanly with
+  `get_tree().quit()` (exit code 0).
+- **Loop guard (required):** the `--autoplay` arg is still in the
+  command line when the title screen is re-entered after a finished
+  run. Without a guard, the start screen would press Start forever.
+  Add a session flag on the autoload — `RunState.autoplay_run_completed`
+  — set when an autoplay game ends (autoloads survive
+  `change_scene_to_file`). Start screen logic:
+  - autoplay arg present, flag false → press Start
+  - autoplay arg present, flag true → log final summary, `quit()`
+
+### Log contract
+
+Structured logs are the observable contract for autoplay runs (grep
+them ad hoc or from CI; no formal asserts exist). The canonical run:
+
+```
+godot --headless --path . -- --autoplay=word_search
+```
+
+must emit, in order:
+
+```
+[StartScreen] ready — menu shown
+[StartScreen] autoplay detected — pressing Start
+[StartScreen] launch glitch — N ghosts stamped   (N > 0)
+[StartScreen] launching main scene
+... existing [RunState] / [Turn] / [Autoplay] gameplay logs ...
+[StartScreen] run complete — quitting
+```
+
+and exit with code 0. The ghost count doubles as a cheap regression
+check: a stamping refactor that breaks the effect reads `0 ghosts`
+while the transition still "works". Also document this command and
+contract in `scripts/sim/README.md` when implementing.
+
 ## Explicitly out of scope (possible follow-ups)
 
 - Taskbar / Start button / desktop icons
@@ -110,5 +183,3 @@ App exit lives only on the title screen.
 - snake_case files/nodes; theme via `themes/win95.tres` (project default).
 - `Control.size` is (0,0) before first layout — center the dialog with
   `custom_minimum_size`, as `main.gd` does for the game-over dialog.
-- No sim impact: nothing here touches scoring/progression, so
-  `scripts/sim/game_core.gd` needs no changes.
