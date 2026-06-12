@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://cm7bq8yt2qm0c"]
 
-[ext_resource type="Script" uid="uid://d3xkkwpxzak23" path="res://scripts/start_screen.gd" id="1_script"]
+[ext_resource type="Script" uid="uid://h2s4sdu5mk0o" path="res://scripts/start_screen.gd" id="1_script"]
 [ext_resource type="Theme" uid="uid://3pupw0vetlo0" path="res://themes/win95.tres" id="2_theme"]
 [ext_resource type="PackedScene" path="res://scenes/crt_overlay.tscn" id="3_crt"]
 
