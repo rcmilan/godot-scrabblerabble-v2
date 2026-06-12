@@ -1,0 +1,148 @@
+[gd_scene format=3 uid="uid://cm7bq8yt2qm0c"]
+
+[ext_resource type="Script" uid="uid://d3xkkwpxzak23" path="res://scripts/start_screen.gd" id="1_script"]
+[ext_resource type="Theme" uid="uid://3pupw0vetlo0" path="res://themes/win95.tres" id="2_theme"]
+[ext_resource type="PackedScene" path="res://scenes/crt_overlay.tscn" id="3_crt"]
+
+[node name="StartScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme = ExtResource("2_theme")
+script = ExtResource("1_script")
+
+[node name="Desktop" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0.5, 0.5, 1)
+
+[node name="GhostLayer" type="Control" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="TitleDialog" type="Panel" parent="."]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -180.0
+offset_top = -110.0
+offset_right = 180.0
+offset_bottom = 110.0
+grow_horizontal = 2
+grow_vertical = 2
+custom_minimum_size = Vector2(360, 220)
+theme_type_variation = &"WindowFrame"
+
+[node name="InnerVBox" type="VBoxContainer" parent="TitleDialog"]
+layout_mode = 1
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 2.0
+offset_top = 2.0
+offset_right = -2.0
+offset_bottom = -2.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="TitleBar" type="Panel" parent="TitleDialog/InnerVBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 22)
+theme_type_variation = &"TitleBar"
+
+[node name="TitleContent" type="HBoxContainer" parent="TitleDialog/InnerVBox/TitleBar"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+offset_left = 4.0
+offset_right = -2.0
+
+[node name="TitleLabel" type="Label" parent="TitleDialog/InnerVBox/TitleBar/TitleContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "ScrabbleRabble 95"
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+
+[node name="WinButtons" type="HBoxContainer" parent="TitleDialog/InnerVBox/TitleBar/TitleContent"]
+layout_mode = 2
+size_flags_horizontal = 8
+separation = 2
+
+[node name="MinBtn" type="Button" parent="TitleDialog/InnerVBox/TitleBar/TitleContent/WinButtons"]
+layout_mode = 2
+custom_minimum_size = Vector2(16, 14)
+focus_mode = 0
+text = "-"
+flat = false
+
+[node name="MaxBtn" type="Button" parent="TitleDialog/InnerVBox/TitleBar/TitleContent/WinButtons"]
+layout_mode = 2
+custom_minimum_size = Vector2(16, 14)
+focus_mode = 0
+text = "O"
+flat = false
+
+[node name="CloseBtn" type="Button" parent="TitleDialog/InnerVBox/TitleBar/TitleContent/WinButtons"]
+layout_mode = 2
+custom_minimum_size = Vector2(16, 14)
+focus_mode = 0
+text = "X"
+flat = false
+
+[node name="BodyArea" type="VBoxContainer" parent="TitleDialog/InnerVBox"]
+layout_mode = 2
+size_flags_vertical = 3
+alignment = 1
+
+[node name="BigTitle" type="Label" parent="TitleDialog/InnerVBox/BodyArea"]
+layout_mode = 2
+text = "ScrabbleRabble 95"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 36
+theme_override_colors/font_color = Color(0, 0, 0.5019, 1)
+
+[node name="Subtitle" type="Label" parent="TitleDialog/InnerVBox/BodyArea"]
+layout_mode = 2
+text = "A word game for Windows® 95"
+horizontal_alignment = 1
+
+[node name="MidSpacer" type="Control" parent="TitleDialog/InnerVBox/BodyArea"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 12)
+
+[node name="ButtonRow" type="HBoxContainer" parent="TitleDialog/InnerVBox/BodyArea"]
+layout_mode = 2
+alignment = 1
+
+[node name="StartButton" type="Button" parent="TitleDialog/InnerVBox/BodyArea/ButtonRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(88, 24)
+text = "Start"
+
+[node name="Gap" type="Control" parent="TitleDialog/InnerVBox/BodyArea/ButtonRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(12, 0)
+
+[node name="QuitButton" type="Button" parent="TitleDialog/InnerVBox/BodyArea/ButtonRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(88, 24)
+text = "Quit"
+
+[node name="CRTOverlay" parent="." instance=ExtResource("3_crt")]
