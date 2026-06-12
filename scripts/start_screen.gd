@@ -44,6 +44,10 @@ func _has_autoplay_arg() -> bool:
 func _maybe_autoplay() -> void:
 	if not _has_autoplay_arg():
 		return
+	if RunState.autoplay_run_completed:
+		print("[StartScreen] run complete — quitting")
+		get_tree().quit()
+		return
 	print("[StartScreen] autoplay detected — pressing Start")
 	await get_tree().create_timer(0.3).timeout
 	_on_start_pressed()

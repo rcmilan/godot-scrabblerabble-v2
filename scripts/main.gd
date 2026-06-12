@@ -383,6 +383,12 @@ func _autoplay_pick_upgrade_dialog(dialog: UpgradeDialog, upgrade_id: String) ->
 	if is_instance_valid(dialog):
 		dialog.upgrade_picked.emit(upgrade_id)
 
+func _autoplay_quit_game_over(dialog: Panel) -> void:
+	await get_tree().create_timer(1.0).timeout
+	if is_instance_valid(dialog):
+		print("[Autoplay] game over — quitting to title")
+		dialog._on_quit()
+
 func _on_game_over(final_round: int, final_round_score: int, final_target: int) -> void:
 	_autoplay_active = false
 	_update_hud()
@@ -397,6 +403,9 @@ func _on_game_over(final_round: int, final_round_score: int, final_target: int) 
 	# size is still (0,0) before the first layout pass.
 	var vp_size := get_viewport().get_visible_rect().size
 	dialog.position = (vp_size - dialog.custom_minimum_size) / 2.0
+	if _autoplay_strategy_arg() != "":
+		RunState.autoplay_run_completed = true
+		_autoplay_quit_game_over(dialog)
 
 # ---------- Autoplay ----------
 func _maybe_start_autoplay() -> void:
