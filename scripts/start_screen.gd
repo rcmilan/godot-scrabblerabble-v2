@@ -1,5 +1,11 @@
 extends Control
 
+const GLITCH_FREEZE_SEC: float = 0.4
+const GLITCH_HOLD_SEC:   float = 0.3
+const GHOST_STEP_PX:     float = 20.0
+const GHOST_STEPS:       int   = 12
+const GHOST_STEP_SEC:    float = 0.06
+
 @onready var title_dialog: Panel  = $TitleDialog
 @onready var start_button: Button = $TitleDialog/InnerVBox/BodyArea/ButtonRow/StartButton
 @onready var quit_button:  Button = $TitleDialog/InnerVBox/BodyArea/ButtonRow/QuitButton
@@ -23,6 +29,26 @@ func _on_start_pressed() -> void:
 	_launching = true
 	start_button.disabled = true
 	quit_button.disabled = true
+	_play_launch_glitch()
+
+func _play_launch_glitch() -> void:
+	await get_tree().create_timer(GLITCH_FREEZE_SEC).timeout
+	var ghost_count := 0
+	for i in GHOST_STEPS:
+		var ghost := title_dialog.duplicate() as Panel
+		ghost.position = title_dialog.position
+		ghost.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		ghost.set_process(false)
+		ghost.set_process_input(false)
+		$GhostLayer.add_child(ghost)
+		ghost_count += 1
+		if i % 2 == 0:
+			title_dialog.position.x += GHOST_STEP_PX
+		else:
+			title_dialog.position.y += GHOST_STEP_PX
+		await get_tree().create_timer(GHOST_STEP_SEC).timeout
+	print("[StartScreen] launch glitch — %d ghosts stamped" % ghost_count)
+	await get_tree().create_timer(GLITCH_HOLD_SEC).timeout
 	_launch()
 
 func _launch() -> void:
