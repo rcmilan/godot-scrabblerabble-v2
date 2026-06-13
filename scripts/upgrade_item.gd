@@ -95,7 +95,7 @@ func _draw() -> void:
 				font_size_mod, mod_color)
 
 		# Draw bag count below modifier (small gray text)
-		var bag_count := GameData.LETTER_DISTRIBUTION.get(letter, 0)
+		var bag_count: int = GameData.LETTER_DISTRIBUTION.get(letter, 0)
 		var bag_text := "%d in bag" % bag_count
 		var font_size_bag := 9
 		var bag_size := font.get_string_size(bag_text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size_bag)
