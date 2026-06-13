@@ -40,12 +40,12 @@ anchor_top = 0.5
 anchor_right = 0.5
 anchor_bottom = 0.5
 offset_left = -180.0
-offset_top = -110.0
+offset_top = -170.0
 offset_right = 180.0
-offset_bottom = 110.0
+offset_bottom = 170.0
 grow_horizontal = 2
 grow_vertical = 2
-custom_minimum_size = Vector2(360, 220)
+custom_minimum_size = Vector2(360, 340)
 theme_type_variation = &"WindowFrame"
 
 [node name="InnerVBox" type="VBoxContainer" parent="TitleDialog"]
@@ -127,22 +127,39 @@ horizontal_alignment = 1
 layout_mode = 2
 custom_minimum_size = Vector2(0, 12)
 
-[node name="ButtonRow" type="HBoxContainer" parent="TitleDialog/InnerVBox/BodyArea"]
+[node name="MenuButtons" type="VBoxContainer" parent="TitleDialog/InnerVBox/BodyArea"]
 layout_mode = 2
+size_flags_horizontal = 4
+theme_override_constants/separation = 6
 alignment = 1
 
-[node name="StartButton" type="Button" parent="TitleDialog/InnerVBox/BodyArea/ButtonRow"]
+[node name="EasyButton" type="Button" parent="TitleDialog/InnerVBox/BodyArea/MenuButtons"]
 layout_mode = 2
-custom_minimum_size = Vector2(88, 24)
-text = "Start"
+custom_minimum_size = Vector2(120, 26)
+text = "Easy"
 
-[node name="Gap" type="Control" parent="TitleDialog/InnerVBox/BodyArea/ButtonRow"]
+[node name="MediumButton" type="Button" parent="TitleDialog/InnerVBox/BodyArea/MenuButtons"]
 layout_mode = 2
-custom_minimum_size = Vector2(12, 0)
+custom_minimum_size = Vector2(120, 26)
+text = "Medium"
 
-[node name="QuitButton" type="Button" parent="TitleDialog/InnerVBox/BodyArea/ButtonRow"]
+[node name="HardButton" type="Button" parent="TitleDialog/InnerVBox/BodyArea/MenuButtons"]
 layout_mode = 2
-custom_minimum_size = Vector2(88, 24)
+custom_minimum_size = Vector2(120, 26)
+text = "Hard"
+
+[node name="EndlessButton" type="Button" parent="TitleDialog/InnerVBox/BodyArea/MenuButtons"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 26)
+text = "Endless"
+
+[node name="QuitGap" type="Control" parent="TitleDialog/InnerVBox/BodyArea/MenuButtons"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 10)
+
+[node name="QuitButton" type="Button" parent="TitleDialog/InnerVBox/BodyArea/MenuButtons"]
+layout_mode = 2
+custom_minimum_size = Vector2(120, 26)
 text = "Quit"
 
 [node name="CRTOverlay" parent="." instance=ExtResource("3_crt")]
