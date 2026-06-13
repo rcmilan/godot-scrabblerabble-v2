@@ -123,8 +123,12 @@ the rack:
   the ends** (no wrap).
 - **Letter placement stays board-only** — typing a letter while focused
   in the rack does nothing (placement needs a board target).
-- `main.gd` tracks the active zone (board vs rack) and the rack index,
-  and routes arrow keys / Delete accordingly.
+- **No zone state is kept.** `main.gd` derives the active zone from the
+  current focus owner (`get_viewport().gui_get_focus_owner()`): a focused
+  rack tile means the rack, otherwise the board. This avoids a desync
+  where a mouse click focuses a rack tile while a tracked zone still says
+  "board". `cursor` already holds the last board cell, so Up from the
+  rack is just `board.focus_cell(cursor)`.
 
 ### 4.3 Delete/Backspace — context-sensitive
 
@@ -192,9 +196,13 @@ global position and **flies to its rack slot** (tween global position,
   bin's `_drop_data`/`_can_drop_data` need the same guard.
 - Blocked when `discards_left == 0` (discard only; the board-return is
   not limited).
-- **Re-entrancy lock:** a `_discard_in_progress` (and/return) flag locks
-  further discards/returns while an animation is mid-flight, preventing
-  double-spend or overlapping tile reparenting from corrupting the rack.
+- **Animation lock (full input gate):** a `_discard_busy` flag freezes
+  ALL game input (cursor, placement, turn-end, further discards/returns)
+  for the ~0.25s an animation runs — added to the `_unhandled_input`
+  early-return and the drag-drop guards. This prevents the fly-back limbo
+  bug (ending the turn while a returned tile is still in-flight, which
+  would over-fill the rack) and any double-spend. Autoplay calls game
+  functions directly, so it poll-waits on `_discard_busy` instead.
 - Structured logging with a new prefix, e.g.
   `print("[Discard] rack discard — %s, %d left" % [letter, RunState.discards_left])`,
   `[Discard] board tile returned — %s` for the fly-back.
@@ -229,17 +237,32 @@ Mirror the live mechanics exactly:
 - Add a **new** discard-aware strategy (e.g.
   `scripts/sim/strategies/discard_word_search.gd`) rather than editing
   an existing one — the existing strategies stay as controls so a batch
-  run answers "do strategic discards score more?". A simple v1
-  heuristic: discard the least-useful tiles (low-frequency hard letters
-  with no usable partners, or tiles in no found word), capped by
-  `discards_left`. The heuristic is tunable; the hook + a strategy that
-  exercises it + parity are what matter.
+  run answers "do strategic discards score more?". Heuristic =
+  **discard-when-stuck, vowel-balance which-tile**: only spend a discard
+  when the rack can't form any valid word this turn (detected by reusing
+  the parent word-search — a 1-tile random fallback is the "stuck"
+  signal), then ditch the least-useful tile by vowel balance (drop a
+  surplus vowel if flooded, a rare consonant if vowel-starved). This
+  conserves the scarce 3-per-round budget instead of spending it
+  reflexively. Tunable; the approved fallback if the stuck-detection is
+  too coarse is pure vowel-balance every turn.
 
 ### 8.4 Tests
 Add parity test cases (mirroring TC/TS/TSM style): the no-repeat-letter
 rule, the per-round reset of `discards_left`, determinism under a fixed
 seed, and modifier re-application on the replacement. Run
 `scripts/sim/tests/run_tests.gd` and confirm existing cases still pass.
+
+### 8.5 Live autoplay discards
+Live autoplay also drives discards (so the bot visibly uses the bin and
+the whole feature gets end-to-end coverage). The `_AutoplayAdapter`
+gains a `discards_left` field (from `RunState`); `_run_autoplay` runs
+`strategy.pick_discards(adapter)` each turn before placing, routing each
+through the real animated `discard_rack_tile` and **poll-waiting on
+`_discard_busy`** between actions. `discard_word_search` is registered in
+both `sim_runner.gd` and `main.gd::_build_strategy`. The headless
+`simulator.gd` batch remains the fast, animation-free *measurement*; live
+autoplay is the *visual* demo.
 
 ## 9. Files touched / added
 

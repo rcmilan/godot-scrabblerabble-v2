@@ -294,40 +294,36 @@ At the very end of `_draw()` add the cursor ring:
 (The upgrade wizard sets its embedded tiles to `FOCUS_NONE`, so they
 never show this — no conflict.)
 
-### 4b. `main.gd` — zone state + navigation
+### 4b. `main.gd` — navigation (derived from the focus owner)
 
-Add vars near `cursor`:
+**No zone state is kept.** The active zone is simply whatever holds
+focus right now (`get_viewport().gui_get_focus_owner()`). This avoids a
+desync where a mouse-click focuses a rack tile while a `_focus_zone`
+var still says `"board"`. `cursor` already holds the last focused board
+cell (set in `_on_cell_focused` — leave that function as-is), so
+returning to the board is just `board.focus_cell(cursor)`.
 
-```gdscript
-var _focus_zone: String = "board"   # "board" | "rack"
-var _rack_cursor: int = 0
-var _last_board_cursor: Vector2i = Vector2i(3, 3)
-```
-
-In `_on_cell_focused`, also pin the zone:
-
-```gdscript
-func _on_cell_focused(cell: BoardCell) -> void:
-	cursor = cell.grid_pos
-	_focus_zone = "board"
-```
-
-Rewrite the arrow-handling part of `_unhandled_input`. Keep the gating
-early-return at the top. Replace the `if event.is_action_pressed("ui_left") …`
-chain with a zone split:
+Rewrite the arrow-handling part of `_unhandled_input` (keep the gating
+early-return at the top). Replace the
+`if event.is_action_pressed("ui_left") …` chain with:
 
 ```gdscript
-	if _focus_zone == "rack":
+	var focused = get_viewport().gui_get_focus_owner()
+	var rack_idx := rack.tiles_in_hand.find(focused)
+
+	if rack_idx != -1:
+		# --- in the rack ---
 		if event.is_action_pressed("ui_left"):
-			_move_rack_cursor(-1); get_viewport().set_input_as_handled()
+			_focus_rack_index(rack_idx - 1); get_viewport().set_input_as_handled()
 		elif event.is_action_pressed("ui_right"):
-			_move_rack_cursor(1); get_viewport().set_input_as_handled()
+			_focus_rack_index(rack_idx + 1); get_viewport().set_input_as_handled()
 		elif event.is_action_pressed("ui_up"):
-			_exit_rack_to_board(); get_viewport().set_input_as_handled()
+			board.focus_cell(cursor); get_viewport().set_input_as_handled()
 		elif event.is_action_pressed("ui_down"):
 			get_viewport().set_input_as_handled()
 		return
 
+	# --- on the board ---
 	if event.is_action_pressed("ui_left"):
 		_move_cursor(Vector2i(-1, 0)); get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("ui_right"):
@@ -347,37 +343,26 @@ chain with a zone split:
 			_try_place_letter_on_cursor(char(key_event.keycode))
 ```
 
-Add the helpers:
+Add the helpers (stateless — they read/grab focus directly):
 
 ```gdscript
 func _enter_rack() -> void:
+	_focus_rack_index(clampi(cursor.x, 0, rack.tiles_in_hand.size() - 1))
+
+func _focus_rack_index(idx: int) -> void:
 	if rack.tiles_in_hand.is_empty():
 		return
-	_last_board_cursor = cursor
-	_focus_zone = "rack"
-	_rack_cursor = clampi(cursor.x, 0, rack.tiles_in_hand.size() - 1)
-	_focus_rack_tile()
-
-func _exit_rack_to_board() -> void:
-	_focus_zone = "board"
-	cursor = _last_board_cursor
-	board.focus_cell(cursor)
-
-func _move_rack_cursor(delta: int) -> void:
-	if rack.tiles_in_hand.is_empty():
-		return
-	_rack_cursor = clampi(_rack_cursor + delta, 0, rack.tiles_in_hand.size() - 1)
-	_focus_rack_tile()
-
-func _focus_rack_tile() -> void:
-	if _rack_cursor >= 0 and _rack_cursor < rack.tiles_in_hand.size():
-		rack.tiles_in_hand[_rack_cursor].grab_focus()
+	rack.tiles_in_hand[clampi(idx, 0, rack.tiles_in_hand.size() - 1)].grab_focus()
 ```
+
+Do NOT add any `_focus_zone` / `_rack_cursor` / `_last_board_cursor`
+state, and do NOT modify `_on_cell_focused`.
 
 **Verify (human):** from the board, Down at the bottom row jumps into the
 rack (cyan ring on a tile); Left/Right move along the rack and clamp at
-the ends; Up returns to the board where you left it. Typing a letter
-while in the rack does nothing.
+the ends; Up returns to the board where you left it. Clicking a rack
+tile with the mouse and then pressing arrows also navigates the rack
+(no desync). Typing a letter while in the rack does nothing.
 
 ---
 
@@ -402,11 +387,10 @@ Add the handler — it uses the *actual* focus owner so it's robust:
 ```gdscript
 func _handle_delete() -> void:
 	var focused = get_viewport().gui_get_focus_owner()
-	if focused is Tile and rack.tiles_in_hand.has(focused):
+	var rack_idx := rack.tiles_in_hand.find(focused)
+	if rack_idx != -1:
 		discard_rack_tile(focused as Tile)
-		if _focus_zone == "rack":
-			_rack_cursor = clampi(_rack_cursor, 0, rack.tiles_in_hand.size() - 1)
-			_focus_rack_tile()
+		_focus_rack_index(rack_idx)   # focus the replacement in the same slot
 	elif focused is BoardCell:
 		var cell := focused as BoardCell
 		if cell.current_tile != null:
@@ -430,22 +414,33 @@ empty cell does nothing.
 **Goal:** discard flies to the bin, replacement pops in, board returns
 fly back. Lock against overlapping animations.
 
-### 6a. Animation overlay + lock
+### 6a. Animation overlay + full input lock
 
-In `main.gd`, add a var `var _discard_busy: bool = false` and create an
-overlay layer in `_ready()` (after `add_to_group("main")`):
+In `main.gd`, add `var _discard_busy: bool = false` and
+`var _anim_layer: CanvasLayer` near the top, and create the overlay in
+`_ready()` (after `add_to_group("main")`):
 
 ```gdscript
 	_anim_layer = CanvasLayer.new()
 	_anim_layer.layer = 40
 	add_child(_anim_layer)
 ```
-with `var _anim_layer: CanvasLayer` declared near the top.
 
-Guard both entry points: at the top of `discard_rack_tile` and
-`_return_pending_tile`, add `if _discard_busy: return`. Add
-`if _discard_busy: return` to `RecycleBin._can_drop_data` too? — simpler:
-in `discard_rack_tile` the guard covers both mouse and keyboard.
+`_discard_busy` is a **full input gate** for the ~0.25s an animation
+runs — this is what prevents the fly-back limbo bug (turn-end mid-flight
+over-filling the rack) and double-spends. Wire it into the existing
+guards:
+
+- `_unhandled_input` early-return becomes
+  `if RunState.is_game_over or RunState.is_transitioning or RunState.is_upgrading or _discard_busy: return`
+- `on_tile_dropped_on_cell` and `on_tile_returned_to_rack`: add
+  `or _discard_busy` to their guard conditions.
+- `discard_rack_tile` and `_return_pending_tile` each begin with
+  `if _discard_busy: return` (shown below) — the backstop for both
+  mouse and keyboard.
+
+Autoplay (Slice 9) calls game functions directly, not through
+`_unhandled_input`, so it must poll-wait on `_discard_busy` itself.
 
 ### 6b. Discard flies to the bin
 
@@ -482,14 +477,13 @@ func discard_rack_tile(tile: Tile) -> void:
 	tw.chain().tween_callback(func() -> void:
 		old_tile.queue_free()
 		_discard_busy = false
-		if _focus_zone == "rack":
-			_rack_cursor = clampi(_rack_cursor, 0, rack.tiles_in_hand.size() - 1)
-			_focus_rack_tile()
 	)
 ```
 
-(Remove the `if _focus_zone == "rack"` re-focus block you added to
-`_handle_delete` in Slice 5 — the tween callback now owns re-focus.)
+Re-focus is owned by `_handle_delete` (keyboard): it calls
+`_focus_rack_index(rack_idx)` right after `discard_rack_tile`, and the
+replacement is already in the rack at that slot. A mouse (bin) discard
+leaves focus where it was. No focus state is involved.
 
 ### 6c. Board return flies back
 
@@ -620,14 +614,15 @@ func pick_discards(core) -> Array:
 ```
 
 3. **New `scripts/sim/strategies/discard_word_search.gd`** — extends the
-   word_search baseline, adds a simple heuristic (discard the lowest
-   tiles when the rack is weak). Keep v1 simple:
+   word_search baseline. Heuristic = **discard-when-stuck (C), with
+   vowel-balance (B) choosing which tile**: only spend a discard when the
+   rack can't form any valid word this turn, then ditch the least-useful
+   tile by vowel balance.
 
 ```gdscript
 extends "res://scripts/sim/strategies/word_search_strategy.gd"
 
-# Discards low-value letters (no usable partners) to fish for better tiles.
-const HARD_LETTERS := {"Q": true, "Z": true, "X": true, "J": true, "K": true, "V": true, "W": true}
+const VOWELS := {"A": true, "E": true, "I": true, "O": true, "U": true}
 
 func get_name() -> String:
 	return "discard_word_search"
@@ -635,33 +630,52 @@ func get_name() -> String:
 func pick_discards(core) -> Array:
 	if core.discards_left <= 0:
 		return []
-	var has_vowel := false
-	for l in core.rack_letters():
-		if l in ["A", "E", "I", "O", "U"]:
-			has_vowel = true
-			break
-	var out: Array = []
-	for entry in core.rack:
-		if out.size() >= core.discards_left:
-			break
-		var l: String = entry["letter"]
-		# Don't dump a vowel if it's our only one; ditch hard letters.
-		if HARD_LETTERS.has(l) and not (l in ["A","E","I","O","U"]):
-			out.append(l)
-	if not has_vowel:
-		out = []  # keep what we have; don't gamble away a vowel-less rack blindly
-	return out
+	# (C) Only discard when stuck. word_search returns a multi-tile
+	# placement only when it matched the dictionary; a 1-tile random
+	# fallback is the "no word found" signal. (pick_moves is read-only.)
+	if pick_moves(core).size() >= 2:
+		return []
+	# (B) Stuck -> ditch one least-useful tile to fish for a better hand.
+	var letter := _least_useful_letter(core)
+	return [letter] if letter != "" else []
+
+func _least_useful_letter(core) -> String:
+	var letters: Array = core.rack_letters()
+	if letters.is_empty():
+		return ""
+	var vowels := 0
+	for l in letters:
+		if VOWELS.has(l):
+			vowels += 1
+	var want_drop_vowel := vowels >= 5     # vowel-flooded
+	var want_keep_vowel := vowels <= 1     # vowel-starved
+	var best := ""
+	var best_freq := 999
+	for l in letters:
+		var is_vowel: bool = VOWELS.has(l)
+		if want_keep_vowel and is_vowel:
+			continue
+		if want_drop_vowel and not is_vowel:
+			continue
+		var freq: int = core.LETTER_DISTRIBUTION.get(l, 0)
+		if freq < best_freq:
+			best_freq = freq
+			best = l
+	return best if best != "" else letters[0]
 ```
 
-   (Heuristic is tunable; the point is it exercises the hook so a batch
-   run can compare it against `word_search`.)
+   Notes: the `pick_moves(core).size() >= 2` check is the "real word vs
+   random fallback" signal. If it proves too coarse in testing, the
+   approved fallback is pure vowel-balance (B): drop the stuck-gate and
+   always rebalance when `discards_left > 0`. Heuristic is tunable; what
+   matters is it exercises the hook so a batch run can compare it to
+   `word_search`. (Costs one extra read-only `pick_moves` per turn,
+   within the strategy's existing 50ms budget.)
 
-4. **Register the strategy** wherever the sim builds strategies by name
-   (`scripts/sim/sim_runner.gd` — mirror an existing case like
-   `word_search`). Optional: add it to `main.gd::_build_strategy` too if
-   you want `--autoplay=discard_word_search` (note: live autoplay only
-   calls `pick_moves`, so it won't actually discard live — discards are
-   exercised in the headless sim).
+4. **Register the strategy** in `scripts/sim/sim_runner.gd` (mirror an
+   existing case like `word_search`) **and** in `main.gd::_build_strategy`
+   — live autoplay drives discards too (Slice 9), so
+   `--autoplay=discard_word_search` will visibly use the bin.
 
 5. **Tests** — append to `scripts/sim/tests/test_game_core.gd` (they're
    auto-discovered by the `test_` prefix). Cover the three key cases:
@@ -704,7 +718,61 @@ cases. Optionally run a batch comparing `word_search` vs
 
 ---
 
-## Slice 9 — Docs
+## Slice 9 — Live autoplay discards
+
+**Goal:** the bot uses the Recycle Bin in the real game, so the whole
+feature gets end-to-end coverage. The headless batch (Slice 8) stays the
+*measurement*; this adds the *visible* layer.
+
+1. **`_AutoplayAdapter` gains `discards_left`.** Add the field and set it
+   in `refresh()` from `RunState.discards_left`:
+
+```gdscript
+	var discards_left: int = 0
+	# inside refresh():
+	discards_left = RunState.discards_left
+```
+
+   Everything else `pick_discards` needs — `rack`, `rack_letters`,
+   `board`, `is_cell_empty`, `rng`, `tiles_per_turn`, `BOARD_SIZE`,
+   `LETTER_DISTRIBUTION` — the strategy reads via the adapter or its own
+   consts; the inherited `pick_moves` is unchanged. (Note: the adapter
+   does not need `LETTER_DISTRIBUTION` if the strategy reads it from
+   `GameCore`/its own table — keep the strategy's `core.LETTER_DISTRIBUTION`
+   access working by exposing it on the adapter as a const/getter, or
+   switch the strategy to a local table; pick whichever is simpler.)
+
+2. **Discard phase in `_run_autoplay`.** Each turn, after
+   `adapter.refresh(...)` and before placing, run discards through the
+   real animated path and poll-wait the lock:
+
+```gdscript
+		adapter.refresh(RunState.tiles_per_turn)
+		for letter in strategy.pick_discards(adapter):
+			if RunState.discards_left <= 0:
+				break
+			var t := rack.find_tile_with_letter(letter)
+			if t == null:
+				continue
+			discard_rack_tile(t)
+			while _discard_busy:
+				await get_tree().create_timer(0.05).timeout
+			await get_tree().create_timer(AUTOPLAY_STEP_MS / 1000.0).timeout
+		adapter.refresh(RunState.tiles_per_turn)
+```
+
+   (Place this just before the existing `var moves = strategy.pick_moves(...)`
+   line, inside the same `_autoplay_active`/`is_*` guarded loop body.
+   Strategies that don't override `pick_discards` return `[]`, so this is
+   a no-op for them.)
+
+3. **Verify (human):** run `--autoplay=discard_word_search` in the real
+   game — when the bot's hand is stuck it drags a tile to the bin (fly
+   animation, count drops), then plays. Other strategies are unaffected.
+
+---
+
+## Slice 10 — Docs
 
 Append a short "Discard parity" section to `scripts/sim/README.md`:
 - `discard_tile(letter)` mirrors live: weighted draw excluding the
@@ -724,6 +792,5 @@ Append a short "Discard parity" section to `scripts/sim/README.md`:
 ## Out of scope (do NOT build)
 
 Discarding board-pending tiles directly, right-click-to-discard, audio,
-turn-mechanics rebalance, multi-tile discard, live-autoplay discards
-(the `_AutoplayAdapter` doesn't drive `pick_discards`). See the design
-doc's "Out of scope" section.
+turn-mechanics rebalance, multi-tile discard. See the design doc's
+"Out of scope" section.
