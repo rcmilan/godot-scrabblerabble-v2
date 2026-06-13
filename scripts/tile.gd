@@ -27,6 +27,9 @@ const C_LABEL_POINT          := Color(0.251, 0.251, 0.251, 1.0)
 func _ready() -> void:
 	_refresh_visual()
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	focus_mode = Control.FOCUS_ALL
+	focus_entered.connect(queue_redraw)
+	focus_exited.connect(queue_redraw)
 
 func set_letter(new_letter: String) -> void:
 	letter = new_letter.to_upper()
@@ -67,6 +70,8 @@ func _draw() -> void:
 	draw_line(Vector2(1, h - 2), Vector2(w - 2, h - 2), C_INNER_DARK)
 	draw_line(Vector2(w - 1, 0), Vector2(w - 1, h - 1), C_OUTER_DARK)
 	draw_line(Vector2(0, h - 1), Vector2(w - 1, h - 1), C_OUTER_DARK)
+	if has_focus():
+		draw_rect(Rect2(0, 0, w, h), Color("#00FFFF"), false, 2.0)
 
 func _draw_horizontal_gradient(rect: Rect2, c0: Color, c1: Color) -> void:
 	var steps: int = int(rect.size.x)

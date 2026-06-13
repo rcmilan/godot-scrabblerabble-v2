@@ -51,18 +51,33 @@ func _unhandled_input(event: InputEvent) -> void:
 	if RunState.is_game_over or RunState.is_transitioning or RunState.is_upgrading:
 		return
 
+	var focused = get_viewport().gui_get_focus_owner()
+	var rack_idx := rack.tiles_in_hand.find(focused)
+
+	if rack_idx != -1:
+		# --- in the rack ---
+		if event.is_action_pressed("ui_left"):
+			_focus_rack_index(rack_idx - 1); get_viewport().set_input_as_handled()
+		elif event.is_action_pressed("ui_right"):
+			_focus_rack_index(rack_idx + 1); get_viewport().set_input_as_handled()
+		elif event.is_action_pressed("ui_up"):
+			board.focus_cell(cursor); get_viewport().set_input_as_handled()
+		elif event.is_action_pressed("ui_down"):
+			get_viewport().set_input_as_handled()
+		return
+
+	# --- on the board ---
 	if event.is_action_pressed("ui_left"):
-		_move_cursor(Vector2i(-1, 0))
-		get_viewport().set_input_as_handled()
+		_move_cursor(Vector2i(-1, 0)); get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("ui_right"):
-		_move_cursor(Vector2i(1, 0))
-		get_viewport().set_input_as_handled()
+		_move_cursor(Vector2i(1, 0)); get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("ui_up"):
-		_move_cursor(Vector2i(0, -1))
-		get_viewport().set_input_as_handled()
+		_move_cursor(Vector2i(0, -1)); get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("ui_down"):
-		_move_cursor(Vector2i(0, 1))
-		get_viewport().set_input_as_handled()
+		if cursor.y >= Board.BOARD_SIZE - 1:
+			_enter_rack(); get_viewport().set_input_as_handled()
+		else:
+			_move_cursor(Vector2i(0, 1)); get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("confirm_turn"):
 		_on_end_turn_pressed()
 	elif event is InputEventKey and event.pressed and not event.echo:
@@ -76,6 +91,14 @@ func _move_cursor(delta: Vector2i) -> void:
 	new_pos.y = clamp(new_pos.y, 0, Board.BOARD_SIZE - 1)
 	cursor = new_pos
 	board.focus_cell(cursor)
+
+func _enter_rack() -> void:
+	_focus_rack_index(clampi(cursor.x, 0, rack.tiles_in_hand.size() - 1))
+
+func _focus_rack_index(idx: int) -> void:
+	if rack.tiles_in_hand.is_empty():
+		return
+	rack.tiles_in_hand[clampi(idx, 0, rack.tiles_in_hand.size() - 1)].grab_focus()
 
 func _try_place_letter_on_cursor(letter: String) -> void:
 	var cell := board.get_cell(cursor)
