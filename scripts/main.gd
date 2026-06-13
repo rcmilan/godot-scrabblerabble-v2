@@ -19,6 +19,8 @@ const AUTOPLAY_STEP_MS: int = 200
 const UPGRADE_OFFER_COUNT: int = 3
 
 var _autoplay_active: bool = false
+var _discard_busy: bool = false
+var _anim_layer: CanvasLayer
 
 @onready var board:            Board  = %Board
 @onready var rack:             Rack   = %Rack
@@ -32,6 +34,9 @@ var cursor:        Vector2i = Vector2i(0, 0)
 
 func _ready() -> void:
 	add_to_group("main")
+	_anim_layer = CanvasLayer.new()
+	_anim_layer.layer = 40
+	add_child(_anim_layer)
 	randomize()
 	end_turn_button.pressed.connect(_on_end_turn_pressed)
 	cursor = Vector2i(3, 3)
@@ -48,7 +53,7 @@ func _on_cell_focused(cell: BoardCell) -> void:
 
 # ---------- Input ----------
 func _unhandled_input(event: InputEvent) -> void:
-	if RunState.is_game_over or RunState.is_transitioning or RunState.is_upgrading:
+	if RunState.is_game_over or RunState.is_transitioning or RunState.is_upgrading or _discard_busy:
 		return
 
 	if event is InputEventKey and event.pressed and not event.echo \
@@ -117,7 +122,7 @@ func _try_place_letter_on_cursor(letter: String) -> void:
 
 # ---------- Drag and drop ----------
 func on_tile_dropped_on_cell(tile: Tile, cell: BoardCell) -> void:
-	if RunState.is_transitioning or RunState.is_upgrading or not cell.is_empty():
+	if RunState.is_transitioning or RunState.is_upgrading or _discard_busy or not cell.is_empty():
 		return
 	_place_tile_on_cell(tile, cell)
 
@@ -151,18 +156,35 @@ func _place_tile_on_cell(tile: Tile, cell: BoardCell) -> void:
 		_on_end_turn_pressed()
 
 func discard_rack_tile(tile: Tile) -> void:
-	if RunState.is_game_over or RunState.is_transitioning or RunState.is_upgrading:
-		return
-	if RunState.discards_left <= 0:
-		return
-	if not rack.tiles_in_hand.has(tile):
-		return
+	if _discard_busy: return
+	if RunState.is_game_over or RunState.is_transitioning or RunState.is_upgrading: return
+	if RunState.discards_left <= 0: return
+	if not rack.tiles_in_hand.has(tile): return
+	var start := tile.global_position
 	var result := rack.discard_replace(tile)
-	if result.is_empty():
-		return
-	(result["old_tile"] as Tile).queue_free()
+	if result.is_empty(): return
 	RunState.use_discard()
 	print("[Discard] rack discard — %s, %d left" % [tile.letter, RunState.discards_left])
+	_discard_busy = true
+	var old_tile := result["old_tile"] as Tile
+	var new_tile := result["new_tile"] as Tile
+	_anim_layer.add_child(old_tile)
+	old_tile.global_position = start
+	old_tile.pivot_offset = old_tile.size * 0.5
+	var bin_centre := recycle_bin.global_position + recycle_bin.size * 0.5
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(old_tile, "global_position", bin_centre - old_tile.size * 0.1, 0.25)
+	tw.tween_property(old_tile, "scale", Vector2(0.2, 0.2), 0.25)
+	tw.tween_property(old_tile, "modulate:a", 0.0, 0.25)
+	# new tile pop-in
+	new_tile.pivot_offset = new_tile.size * 0.5
+	new_tile.scale = Vector2(0.1, 0.1)
+	create_tween().tween_property(new_tile, "scale", Vector2.ONE, 0.18) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.chain().tween_callback(func() -> void:
+		old_tile.queue_free()
+		_discard_busy = false
+	)
 
 func _handle_delete() -> void:
 	var focused = get_viewport().gui_get_focus_owner()
@@ -176,9 +198,34 @@ func _handle_delete() -> void:
 			_return_pending_tile(cell.current_tile)
 
 func _return_pending_tile(tile: Tile) -> void:
+	if _discard_busy: return
+	_discard_busy = true
 	print("[Discard] board tile returned — %s" % tile.letter)
-	on_tile_returned_to_rack(tile)
-	board.focus_cell(cursor)
+	var prev_cell := board.get_cell(tile.board_pos)
+	var start := prev_cell.global_position if prev_cell else tile.global_position
+	if prev_cell:
+		prev_cell.clear_pending()
+		pending_cells.erase(prev_cell)
+	tile.location = "rack"
+	tile.board_pos = Vector2i(-1, -1)
+	tile.visible = true
+	if tile.get_parent():
+		tile.get_parent().remove_child(tile)
+	_anim_layer.add_child(tile)
+	tile.global_position = start
+	# Target: where the tile will sit after joining the rack (approx the
+	# rack's right edge). Tween there, then hand off to the rack.
+	var target := rack.global_position + Vector2(rack.size.x, 0)
+	var tw := create_tween()
+	tw.tween_property(tile, "global_position", target, 0.25).set_ease(Tween.EASE_OUT)
+	tw.tween_callback(func() -> void:
+		_anim_layer.remove_child(tile)
+		rack.add_child(tile)
+		rack.tiles_in_hand.append(tile)
+		_update_hud()
+		_discard_busy = false
+		board.focus_cell(cursor)
+	)
 
 # ---------- End of turn ----------
 func _on_end_turn_pressed() -> void:
