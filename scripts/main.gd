@@ -545,6 +545,17 @@ func _run_autoplay(strategy) -> void:
 			await get_tree().create_timer(0.2).timeout
 			continue
 		adapter.refresh(RunState.tiles_per_turn)
+		for letter in strategy.pick_discards(adapter):
+			if RunState.discards_left <= 0:
+				break
+			var t := rack.find_tile_with_letter(letter)
+			if t == null:
+				continue
+			discard_rack_tile(t)
+			while _discard_busy:
+				await get_tree().create_timer(0.05).timeout
+			await get_tree().create_timer(AUTOPLAY_STEP_MS / 1000.0).timeout
+		adapter.refresh(RunState.tiles_per_turn)
 		var moves: Array = strategy.pick_moves(adapter)
 		if moves.is_empty():
 			print("[Autoplay] strategy returned no moves — ending turn")
@@ -582,9 +593,16 @@ func _run_autoplay(strategy) -> void:
 class _AutoplayAdapter:
 	extends RefCounted
 	const BOARD_SIZE: int = 8
+	const LETTER_DISTRIBUTION = {
+		"A": 9, "B": 2, "C": 2, "D": 4, "E": 12, "F": 2, "G": 3,
+		"H": 2, "I": 9, "J": 1, "K": 1, "L": 4, "M": 2, "N": 6,
+		"O": 8, "P": 2, "Q": 1, "R": 6, "S": 4, "T": 6, "U": 4,
+		"V": 2, "W": 2, "X": 1, "Y": 2, "Z": 1,
+	}
 	var board: Array = []
 	var rack: Array = []
 	var tiles_per_turn: int = 0
+	var discards_left: int = 0
 	var rng: RandomNumberGenerator
 	var _board_node
 	var _rack_node
@@ -595,6 +613,7 @@ class _AutoplayAdapter:
 		rng.randomize()
 	func refresh(current_tiles_per_turn: int) -> void:
 		tiles_per_turn = current_tiles_per_turn
+		discards_left = RunState.discards_left
 		board.clear()
 		board.resize(BOARD_SIZE)
 		for x in BOARD_SIZE:
