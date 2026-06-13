@@ -111,3 +111,23 @@ so it survives the return to the title screen. Set exactly once (in
 
 The pattern: first run sets the flag and presses Start; second pass at
 the title (after game over) sees the flag and quits the app.
+
+## Upgrade Wizard Parity
+
+At the upgrade rounds the game offers letter-modifier upgrades. The offer
+generation and auto-pick are duplicated live/sim and must stay in sync.
+
+- **Offers:** 3 distinct, distribution-weighted, unowned letters with
+  independent 67/33 `2x`/`3x` rolls. The generator is duplicated in
+  `main.gd` and `game_core.gd::_generate_upgrade_offers` — **change both
+  together.**
+- **Auto-pick heuristic** (autoplay + sim):
+  `LETTER_DISTRIBUTION × LETTER_POINTS × multiplier`, ties broken by offer
+  order. Mirrored as `_offer_value` in both files.
+- **Test coverage:** TSM10 (`test_upgrade_auto_pick_at_intervals` — offers
+  appear at the right rounds), TSM11
+  (`test_upgrade_offers_distinct_unowned_deterministic` — offers are
+  distinct, exclude owned letters, and are reproducible under a fixed seed).
+- **Expected autoplay log lines** at upgrade rounds:
+  `[UpgradeWizard] autoplay pick — ...` followed by
+  `[RunState] letter modifier set — ...`.
