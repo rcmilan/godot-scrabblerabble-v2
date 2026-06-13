@@ -67,3 +67,67 @@ See `sim_runner.gd` for the CLI interface. Typical usage:
 ```
 
 Results are written to `user://sim/` as CSV and JSONL.
+
+## Start Screen & the Autoplay Loop
+
+The project boots to a Win95-styled start screen (`scenes/start_screen.tscn`).
+Autoplay runs pass through the menu like a user (full glitch animation,
+deterministic) and close the loop by exiting cleanly with code 0.
+
+### Canonical Autoplay Command
+
+```
+godot --headless --path . -- --autoplay=word_search
+```
+
+### Log Contract
+
+A healthy headless autoplay run emits these log lines in order:
+
+```
+[StartScreen] ready — menu shown
+[StartScreen] autoplay detected — pressing Start
+[StartScreen] launch glitch — 12 ghosts stamped
+[StartScreen] launching main scene
+[Autoplay] starting with strategy=<strategy>, step=200ms
+[RunState] ... gameplay logs ...
+[Autoplay] game over — quitting to title
+[GameOverDialog] quit — returning to title
+[StartScreen] ready — menu shown
+[StartScreen] run complete — quitting
+```
+
+The process must exit with code 0 on its own (NOT timeout). The ghost
+count (12) is a regression check: if stamping breaks, it reads 0 while
+the transition still appears to "work".
+
+### Loop Guard: `RunState.autoplay_run_completed`
+
+This flag prevents an infinite loop when the `--autoplay` CLI arg
+persists across scene changes. It is **NOT** cleared by `RunState.reset()`
+so it survives the return to the title screen. Set exactly once (in
+`main.gd::_on_game_over`) and checked exactly once (in
+`start_screen.gd::_maybe_autoplay`).
+
+The pattern: first run sets the flag and presses Start; second pass at
+the title (after game over) sees the flag and quits the app.
+
+## Upgrade Wizard Parity
+
+At the upgrade rounds the game offers letter-modifier upgrades. The offer
+generation and auto-pick are duplicated live/sim and must stay in sync.
+
+- **Offers:** 3 distinct, distribution-weighted, unowned letters with
+  independent 67/33 `2x`/`3x` rolls. The generator is duplicated in
+  `main.gd` and `game_core.gd::_generate_upgrade_offers` — **change both
+  together.**
+- **Auto-pick heuristic** (autoplay + sim):
+  `LETTER_DISTRIBUTION × LETTER_POINTS × multiplier`, ties broken by offer
+  order. Mirrored as `_offer_value` in both files.
+- **Test coverage:** TSM10 (`test_upgrade_auto_pick_at_intervals` — offers
+  appear at the right rounds), TSM11
+  (`test_upgrade_offers_distinct_unowned_deterministic` — offers are
+  distinct, exclude owned letters, and are reproducible under a fixed seed).
+- **Expected autoplay log lines** at upgrade rounds:
+  `[UpgradeWizard] autoplay pick — ...` followed by
+  `[RunState] letter modifier set — ...`.

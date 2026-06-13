@@ -7,7 +7,6 @@ const GLITTER_SCENE          := preload("res://scenes/glitter_emitter.tscn")
 const GAME_OVER_SCENE        := preload("res://scenes/game_over_dialog.tscn")
 const ROUND_TRANSITION_SCENE := preload("res://scenes/round_transition.tscn")
 const UPGRADE_DIALOG_SCENE   := preload("res://scenes/upgrade_dialog.tscn")
-const LETTER_PICKER_SCENE    := preload("res://scenes/letter_picker_dialog.tscn")
 
 const WORD_SEARCH_STRATEGY      := preload("res://scripts/sim/strategies/word_search_strategy.gd")
 const GREEDY_STRATEGY           := preload("res://scripts/sim/strategies/greedy_strategy.gd")
@@ -17,6 +16,7 @@ const HYBRID_WORD_DIAGONAL_STRATEGY := preload("res://scripts/sim/strategies/hyb
 const CORNER_SPIRAL_STRATEGY := preload("res://scripts/sim/strategies/corner_spiral_strategy.gd")
 
 const AUTOPLAY_STEP_MS: int = 200
+const UPGRADE_OFFER_COUNT: int = 3
 
 var _autoplay_active: bool = false
 
@@ -294,28 +294,26 @@ func _on_transition_finished() -> void:
 		board.focus_cell(cursor)
 
 func _show_upgrade_dialog() -> void:
-	var offered_id := GameData.MOD_3X if randi() % 3 == 0 else GameData.MOD_2X
-	var upgrades: Array[Dictionary] = [
-		{"id": offered_id},
-	]
+	var offers := _generate_upgrade_offers()
 	RunState.is_upgrading = true
 	print("[UpgradeDialog] upgrade offered — round %d" % RunState.current_round)
 
-	var dialog: Panel = UPGRADE_DIALOG_SCENE.instantiate()
+	var dialog: UpgradeDialog = UPGRADE_DIALOG_SCENE.instantiate()
 	var layer := CanvasLayer.new()
 	layer.layer = 50
 	add_child(layer)
 	layer.add_child(dialog)
 
-	# Center dialog; use custom_minimum_size since size is (0,0) before first layout pass.
-	var vp_size := get_viewport().get_visible_rect().size
-	dialog.position = (vp_size - dialog.custom_minimum_size) / 2.0
-
-	dialog.populate(upgrades)
+	dialog.populate(offers)
 	dialog.focus_first()
 
-	dialog.upgrade_picked.connect(func(id: String) -> void:
-		_show_letter_picker(id, dialog, layer)
+	dialog.upgrade_picked.connect(func(offer: Dictionary) -> void:
+		RunState.set_letter_modifier(offer["letter"], offer["modifier"])
+		rack.refill()
+		layer.queue_free()
+		RunState.is_upgrading = false
+		board.focus_cell(cursor)
+		_update_hud()
 	)
 	dialog.skipped.connect(func() -> void:
 		layer.queue_free()
@@ -324,64 +322,54 @@ func _show_upgrade_dialog() -> void:
 	)
 
 	if _autoplay_active:
-		_autoplay_pick_upgrade_dialog(dialog, offered_id)
+		_autoplay_pick_upgrade_dialog(dialog, offers)
 
-func _show_letter_picker(upgrade_id: String, upgrade_dialog: Node, upgrade_layer: CanvasLayer) -> void:
-	var letters := _generate_letter_options(5)
-	upgrade_dialog.visible = false
+func _generate_upgrade_offers() -> Array[Dictionary]:
+	var pool: Array[String] = []
+	for letter in GameData.LETTER_DISTRIBUTION:
+		if RunState.letter_modifiers.has(letter):
+			continue
+		for i in GameData.LETTER_DISTRIBUTION[letter]:
+			pool.append(letter)
+	var offers: Array[Dictionary] = []
+	var picked: Array[String] = []
+	var distinct_count := 0
+	for letter in GameData.LETTER_DISTRIBUTION:
+		if not RunState.letter_modifiers.has(letter):
+			distinct_count += 1
+	while offers.size() < UPGRADE_OFFER_COUNT and not pool.is_empty():
+		if picked.size() >= distinct_count:
+			break
+		var letter: String = pool[randi() % pool.size()]
+		if picked.has(letter):
+			continue
+		picked.append(letter)
+		var mod: String = GameData.MOD_3X if randi() % 3 == 0 else GameData.MOD_2X
+		offers.append({"letter": letter, "modifier": mod})
+	if offers.size() < UPGRADE_OFFER_COUNT:
+		print("[UpgradeWizard] letter pool exhausted — offering %d" % offers.size())
+	return offers
 
-	var picker = LETTER_PICKER_SCENE.instantiate()
-	upgrade_layer.add_child(picker)
-	picker.position = (get_viewport().get_visible_rect().size - picker.custom_minimum_size) * 0.5
-	picker.populate(upgrade_id, letters)
-
-	picker.letter_picked.connect(func(letter: String):
-		RunState.set_letter_modifier(letter, upgrade_id)
-		rack.refill()
-		upgrade_layer.queue_free()
-		RunState.is_upgrading = false
-		print("[Turn] upgrade applied — %s → %s" % [upgrade_id, letter])
-		board.focus_cell(cursor)
-		_update_hud()
-	)
-	picker.back_pressed.connect(func():
-		picker.queue_free()
-		upgrade_dialog.visible = true
-		upgrade_dialog.focus_first()
-	)
-	picker.focus_first()
-
-	if _autoplay_active:
-		_autoplay_pick_letter(picker, letters)
-
-func _generate_letter_options(count: int) -> Array[String]:
-	var all_letters := "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-	var options: Array[String] = []
-	while options.size() < count:
-		var idx := randi() % 26
-		var letter := all_letters[idx]
-		if letter not in options:
-			options.append(letter)
-	return options
-
-func _autoplay_pick_letter(picker: Node, letters: Array[String]) -> void:
-	var letter_pts := {
-		"A":1,"B":3,"C":3,"D":2,"E":1,"F":4,"G":2,"H":4,"I":1,"J":8,
-		"K":5,"L":1,"M":3,"N":1,"O":1,"P":3,"Q":10,"R":1,"S":1,"T":1,
-		"U":1,"V":4,"W":4,"X":8,"Y":4,"Z":10
-	}
-	var best := letters[0]
-	for l in letters:
-		if letter_pts.get(l, 0) > letter_pts.get(best, 0):
-			best = l
+func _autoplay_pick_upgrade_dialog(dialog: UpgradeDialog, offers: Array[Dictionary]) -> void:
 	await get_tree().create_timer(1.0).timeout
-	if is_instance_valid(picker):
-		picker.letter_picked.emit(best)
+	if not is_instance_valid(dialog) or offers.is_empty():
+		return
+	var best: Dictionary = offers[0]
+	for offer in offers:
+		if _offer_value(offer) > _offer_value(best):
+			best = offer
+	print("[UpgradeWizard] autoplay pick — %s ×%s" % [best["letter"], best["modifier"]])
+	dialog.upgrade_picked.emit(best)
 
-func _autoplay_pick_upgrade_dialog(dialog: UpgradeDialog, upgrade_id: String) -> void:
+func _offer_value(offer: Dictionary) -> int:
+	var mult := 3 if offer["modifier"] == GameData.MOD_3X else 2
+	return GameData.LETTER_DISTRIBUTION[offer["letter"]] * GameData.LETTER_POINTS[offer["letter"]] * mult
+
+func _autoplay_quit_game_over(dialog: Panel) -> void:
 	await get_tree().create_timer(1.0).timeout
 	if is_instance_valid(dialog):
-		dialog.upgrade_picked.emit(upgrade_id)
+		print("[Autoplay] game over — quitting to title")
+		dialog._on_quit()
 
 func _on_game_over(final_round: int, final_round_score: int, final_target: int) -> void:
 	_autoplay_active = false
@@ -392,11 +380,21 @@ func _on_game_over(final_round: int, final_round_score: int, final_target: int) 
 	# Below the CRT overlay (layer 100) so scanlines/vignette draw over the dialog.
 	layer.layer = 50
 	add_child(layer)
+
+	var blocker := Control.new()
+	blocker.name = "ModalBlocker"
+	blocker.set_anchors_preset(Control.PRESET_FULL_RECT)
+	blocker.mouse_filter = Control.MOUSE_FILTER_STOP
+	layer.add_child(blocker)
+
 	layer.add_child(dialog)
 	# Center the dialog. custom_minimum_size is reliable at this point;
 	# size is still (0,0) before the first layout pass.
 	var vp_size := get_viewport().get_visible_rect().size
 	dialog.position = (vp_size - dialog.custom_minimum_size) / 2.0
+	if _autoplay_strategy_arg() != "":
+		RunState.autoplay_run_completed = true
+		_autoplay_quit_game_over(dialog)
 
 # ---------- Autoplay ----------
 func _maybe_start_autoplay() -> void:

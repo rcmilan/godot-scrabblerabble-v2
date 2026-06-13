@@ -19,6 +19,7 @@ var tiles_per_turn: int   = INITIAL_TILES_PER_TURN
 var is_game_over:   bool  = false
 var is_transitioning: bool = false
 var is_upgrading:   bool  = false
+var autoplay_run_completed: bool = false
 var history:        Array = []
 var modifier_build: Dictionary = {}   # { "2x": int, ... }  keyed by mod constant
 var letter_modifiers: Dictionary = {}  # { "A": "2x", ... }  maps letter → modifier

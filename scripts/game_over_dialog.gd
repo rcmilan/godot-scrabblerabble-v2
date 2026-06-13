@@ -24,5 +24,6 @@ func _on_restart() -> void:
 	get_tree().reload_current_scene()
 
 func _on_quit() -> void:
-	print("[GameOverDialog] quit")
-	get_tree().quit()
+	print("[GameOverDialog] quit — returning to title")
+	RunState.reset()
+	get_tree().change_scene_to_file("res://scenes/start_screen.tscn")
