@@ -22,6 +22,7 @@ var _autoplay_active: bool = false
 
 @onready var board:            Board  = %Board
 @onready var rack:             Rack   = %Rack
+@onready var recycle_bin:      RecycleBin = %RecycleBin
 @onready var score_label:      Label  = %ScoreLabel
 @onready var tiles_left_label: Label  = %TilesLeftLabel
 @onready var end_turn_button:  Button = %EndTurnButton
@@ -119,6 +120,20 @@ func _place_tile_on_cell(tile: Tile, cell: BoardCell) -> void:
 	_update_hud()
 	if pending_cells.size() >= RunState.tiles_per_turn:
 		_on_end_turn_pressed()
+
+func discard_rack_tile(tile: Tile) -> void:
+	if RunState.is_game_over or RunState.is_transitioning or RunState.is_upgrading:
+		return
+	if RunState.discards_left <= 0:
+		return
+	if not rack.tiles_in_hand.has(tile):
+		return
+	var result := rack.discard_replace(tile)
+	if result.is_empty():
+		return
+	(result["old_tile"] as Tile).queue_free()
+	RunState.use_discard()
+	print("[Discard] rack discard — %s, %d left" % [tile.letter, RunState.discards_left])
 
 # ---------- End of turn ----------
 func _on_end_turn_pressed() -> void:

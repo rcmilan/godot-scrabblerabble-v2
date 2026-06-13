@@ -6,6 +6,7 @@
 [ext_resource type="Theme" uid="uid://3pupw0vetlo0" path="res://themes/win95.tres" id="4_theme"]
 [ext_resource type="PackedScene" path="res://scenes/crt_overlay.tscn" id="5_crt"]
 [ext_resource type="Shader" path="res://shaders/holographic.gdshader" id="6_holo"]
+[ext_resource type="Script" path="res://scripts/recycle_bin.gd" id="7_bin"]
 
 [sub_resource type="FastNoiseLite" id="FNL_Score"]
 noise_type = 1
@@ -138,11 +139,21 @@ size_flags_horizontal = 4
 size_flags_vertical = 4
 script = ExtResource("2_board")
 
-[node name="Rack" type="HBoxContainer" parent="WinFrame/InnerVBox/GameArea"]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(0, 56)
+[node name="RackRow" type="HBoxContainer" parent="WinFrame/InnerVBox/GameArea"]
 layout_mode = 2
 size_flags_horizontal = 4
 alignment = 1
+theme_override_constants/separation = 16
+
+[node name="Rack" type="HBoxContainer" parent="WinFrame/InnerVBox/GameArea/RackRow"]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+alignment = 1
 script = ExtResource("3_rack")
+
+[node name="RecycleBin" type="Control" parent="WinFrame/InnerVBox/GameArea/RackRow"]
+unique_name_in_owner = true
+layout_mode = 2
+script = ExtResource("7_bin")
 
