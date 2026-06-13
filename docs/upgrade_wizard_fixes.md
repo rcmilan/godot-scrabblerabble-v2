@@ -1,133 +1,162 @@
-# Upgrade Wizard — Fix Tasks (tile-appearance polish)
+# Upgrade Wizard — Fix Task (embed the real Tile)
 
-> The container rebuild + navigation fixes from the previous version of
-> this file are **shipped and confirmed working** (centered modal,
-> gray frame covers everything, 2-column grid, banner gradient + title,
-> arrow-key navigation). This file now covers the remaining **tile
-> appearance** polish on the offer cards.
+> The wizard layout, navigation, and banner are shipped and good. The
+> only remaining issue: the offer card **redraws its own copy** of a
+> tile in `upgrade_item.gd::_draw` (duplicated gradient/bevel/letter/
+> point code). That duplicate has already drifted from the real tile
+> once. This task removes the duplicate entirely and shows the **real
+> `Tile`** (the exact node the rack/hand uses), so a tile is drawn by
+> one piece of code everywhere.
 
-The offer card's tile face is *almost* the real in-game tile, but two
-things make it hard to read and off-brand:
+**The rack is the standard.** `rack.gd` builds tiles by instancing
+`res://scenes/tile.tscn` and calling `set_letter()` / `set_modifier()`.
+The wizard card will do the same: instance a `Tile`, drop it in the
+card, and add only the things a rack tile doesn't have — the "N in bag"
+line and the yellow selection border.
 
-1. It draws a redundant **"2x" / "3x"** label below the tile.
-2. The on-tile **point value** is drawn in dark gray, which is nearly
-   invisible on the blue/green gradient. The real modifier tile
-   (`tile.gd`) draws it **white**.
+**Only one file changes: `scripts/upgrade_item.gd`.** Do not touch
+`upgrade_dialog.gd`, the scene, `main.gd`, `tile.gd`, the sim, or offer
+generation. `upgrade_dialog.gd::populate` already sets `item_index`,
+`letter`, `modifier`, and `is_selected` on each card before it is added
+to the tree, and connects the `selected` / `confirmed` / `nav_*`
+signals — all of which this new file still provides, so it stays
+compatible with no edits.
 
-Goal: the card's tile should look **exactly like the tile will look in
-the shop / rack** — gradient body, white 24px letter, white 9px point
-value, bevel — and nothing else on the tile. The "X in bag" line below
-stays, just bigger.
-
-**File touched:** `scripts/upgrade_item.gd` only.
-**Do NOT touch** anything else — layout, navigation, sim, offer
-generation are all correct. No `godot` binary here; the human runs the
-game to verify.
-
-Reference (the real modifier tile, `scripts/tile.gd::_refresh_visual`):
-both the letter and the point value use white (`C_LABEL_MOD =
-Color(1,1,1,1)`) when a modifier is present. Every offer card is always
-a modifier tile, so both are always white.
+No `godot` binary here; the human runs the game to verify.
 
 ---
 
-## Task A — Point value white (the readability fix)
+## The task — replace the whole of `scripts/upgrade_item.gd`
 
-The point value is drawn with `C_LABEL_POINT`, defined as dark gray.
-Since every card is a modifier tile, make it white to match the shop
-tile. Change the constant definition near the top of
-`scripts/upgrade_item.gd`:
+Replace the **entire file** with exactly this:
 
 ```gdscript
-# was: const C_LABEL_POINT          := Color(0.251, 0.251, 0.251, 1.0)
-const C_LABEL_POINT          := Color(1.0, 1.0, 1.0, 1.0)
-```
+class_name UpgradeItem
+extends Control
 
-(`C_LABEL_POINT` is only used for the on-tile point value, so this is
-the whole fix. The letter is already white via `C_LABEL_LETTER`.)
+signal selected(index: int)
+signal confirmed(index: int)
+signal nav_left
+signal nav_right
+signal nav_up
+signal nav_down
 
----
+const TILE_SCENE: PackedScene = preload("res://scenes/tile.tscn")
+const BODY_SIZE := Vector2(56.0, 56.0)   # matches tile.tscn custom_minimum_size
 
-## Task B — Remove the "2x/3x" label, enlarge "X in bag"
+const C_SELECTION_BORDER := Color(1.0, 1.0, 0.0, 1.0)
+const C_BAG_COUNT        := Color(0.251, 0.251, 0.251, 1.0)
 
-In `scripts/upgrade_item.gd::_draw`, find the block that draws the
-modifier text and the bag count below the tile. It currently looks like
-this:
+var item_index: int   = 0
+var letter: String    = "A"
+var modifier: String  = ""
+var is_selected: bool = false
 
-```gdscript
-	# Draw modifier text below tile (×2 or ×3)
-	if font:
-		var mod_text := "2x" if modifier == GameData.MOD_2X else "3x"
-		var mod_color := C_MOD_TEXT_2X if modifier == GameData.MOD_2X else C_MOD_TEXT_3X
-		var font_size_mod := 16
-		var mod_size := font.get_string_size(mod_text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size_mod)
-		var mod_pos := Vector2(
-			body_x + (BODY_SIZE.x - mod_size.x) * 0.5,
-			tile_rect.position.y + BODY_SIZE.y + 2.0
-		)
-		draw_string(font, mod_pos, mod_text, HORIZONTAL_ALIGNMENT_LEFT, -1,
-				font_size_mod, mod_color)
+var _tile: Tile
 
-		# Draw bag count below modifier (small gray text)
-		var bag_count: int = GameData.LETTER_DISTRIBUTION.get(letter, 0)
-		var bag_text := "%d in bag" % bag_count
-		var font_size_bag := 9
-		var bag_size := font.get_string_size(bag_text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size_bag)
-		var bag_pos := Vector2(
-			body_x + (BODY_SIZE.x - bag_size.x) * 0.5,
-			tile_rect.position.y + BODY_SIZE.y + 18.0
-		)
-		draw_string(font, bag_pos, bag_text, HORIZONTAL_ALIGNMENT_LEFT, -1,
-				font_size_bag, C_BAG_COUNT)
-```
+func _ready() -> void:
+	focus_mode          = FOCUS_ALL
+	custom_minimum_size = Vector2(88.0, 96.0)
+	mouse_filter        = MOUSE_FILTER_STOP
+	add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	focus_entered.connect(emit_selected)
+	focus_exited.connect(queue_redraw)
+	_build_tile()
 
-Replace that **entire block** with just the bag count, bigger and moved
-up to sit directly under the tile (the "2x/3x" line is gone):
+func _build_tile() -> void:
+	# Reuse the real rack/board Tile so the wizard and the hand are always
+	# drawn by the same code — tile.gd is the single source of truth.
+	_tile = TILE_SCENE.instantiate() as Tile
+	_tile.letter = letter
+	_tile.position = Vector2((custom_minimum_size.x - BODY_SIZE.x) * 0.5, 0.0)
+	add_child(_tile)
+	_tile.set_modifier(modifier)
+	# Neutralise the tile: the card must receive clicks, and the tile must
+	# not be draggable inside the wizard.
+	_tile.focus_mode   = Control.FOCUS_NONE
+	_tile.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for child in _tile.get_children():
+		if child is Control:
+			(child as Control).mouse_filter = Control.MOUSE_FILTER_IGNORE
 
-```gdscript
-	# Draw "N in bag" below the tile
+func _draw() -> void:
+	# The tile itself is a child node drawn on top; here we draw only the
+	# selection ring (just outside the tile) and the "N in bag" line below.
+	var tile_rect := Rect2(Vector2((size.x - BODY_SIZE.x) * 0.5, 0.0), BODY_SIZE)
+	if is_selected:
+		draw_rect(tile_rect.grow(2.0), C_SELECTION_BORDER, false, 2.0)
+	var font := get_theme_default_font()
 	if font:
 		var bag_count: int = GameData.LETTER_DISTRIBUTION.get(letter, 0)
 		var bag_text := "%d in bag" % bag_count
 		var font_size_bag := 12
 		var bag_size := font.get_string_size(bag_text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size_bag)
-		var bag_pos := Vector2(
-			body_x + (BODY_SIZE.x - bag_size.x) * 0.5,
-			tile_rect.position.y + BODY_SIZE.y + 16.0
-		)
+		var bag_pos := Vector2((size.x - bag_size.x) * 0.5, BODY_SIZE.y + 16.0)
 		draw_string(font, bag_pos, bag_text, HORIZONTAL_ALIGNMENT_LEFT, -1,
 				font_size_bag, C_BAG_COUNT)
+
+func _gui_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_accept"):
+		emit_confirmed()
+		get_viewport().set_input_as_handled()
+	elif event is InputEventMouseButton:
+		var mouse_event := event as InputEventMouseButton
+		if mouse_event.button_index == MOUSE_BUTTON_LEFT and mouse_event.pressed:
+			grab_focus()
+			emit_selected()
+			get_viewport().set_input_as_handled()
+		elif mouse_event.button_index == MOUSE_BUTTON_LEFT and not mouse_event.pressed and mouse_event.double_click:
+			emit_confirmed()
+			get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("ui_left"):
+		nav_left.emit()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("ui_right"):
+		nav_right.emit()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("ui_up"):
+		nav_up.emit()
+		get_viewport().set_input_as_handled()
+	elif event.is_action_pressed("ui_down"):
+		nav_down.emit()
+		get_viewport().set_input_as_handled()
+
+func emit_selected() -> void:
+	selected.emit(item_index)
+
+func emit_confirmed() -> void:
+	confirmed.emit(item_index)
 ```
 
-Changes: dropped the modifier-text draw entirely; bag font 9 → 12; bag
-baseline `+18` → `+16` so it tucks just under the tile now that the
-"2x/3x" line is gone.
+### What changed vs the old file (for your understanding only)
 
----
-
-## Task C (optional cleanup) — Remove now-unused constants
-
-After Task B, `C_MOD_TEXT_2X` and `C_MOD_TEXT_3X` are no longer
-referenced. Delete their two `const` lines near the top of
-`scripts/upgrade_item.gd` to keep the file clean. (Skip if unsure —
-unused constants are harmless and won't break anything.)
+- **Deleted** all the tile-face drawing: the gradient/bevel/letter-color
+  constants, the `_draw_mod2x_body` / `_draw_mod3x_body` /
+  `_draw_win95_bevel` / `_draw_horizontal_gradient` helpers, and the
+  letter/point/`2x`-text drawing in `_draw`.
+- **Added** `_build_tile()`, which instances the real `Tile` and shows
+  it — so the card now renders the letter, point value, gradient, and
+  bevel through `tile.gd`, identical to the rack.
+- **Kept** the selection ring and the (size-12) "N in bag" line, plus
+  the whole `_gui_input` / signal surface unchanged.
 
 ---
 
 ## Manual check (human, with a window)
 
-At an upgrade round, confirm on each card:
+At an upgrade round, confirm:
 
-1. The tile looks **identical to a modifier tile in the rack**: blue
-   (2x) or green (3x) gradient, white letter, **white point value** in
-   the bottom-right corner that is now clearly readable.
-2. **No "2x" / "3x" text** below the tile anymore — the gradient color
-   is the only modifier indicator (the caption still says
-   "double"/"triple").
-3. The **"N in bag"** line below the tile is noticeably larger and
-   easy to read.
-4. Everything else (layout, selection, arrow nav, banner) is unchanged.
+1. Each offer tile looks **pixel-identical to a modifier tile in the
+   rack** — same gradient, same white letter, same white point value in
+   the bottom-right.
+2. The yellow **selection ring** still hugs the focused/selected tile,
+   and arrow keys / clicks still select; Enter / double-click confirm.
+3. The **"N in bag"** line sits below each tile.
+4. You **cannot drag** a wizard tile, and clicking a tile still selects
+   its card.
+5. Change something on the rack tile later (e.g. in `tile.gd`) and it
+   shows up in the wizard automatically — that's the point.
 
 ## Suggested commit
 
-- `fix: upgrade cards match the shop tile (white points, drop 2x label, bigger bag count)`
+- `fix: wizard shows real Tile instances instead of redrawing them`
