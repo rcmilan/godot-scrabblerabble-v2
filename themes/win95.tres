@@ -8,10 +8,19 @@ content_margin_top = 4.0
 content_margin_right = 4.0
 content_margin_bottom = 4.0
 bg_color = Color(0.7529, 0.7529, 0.7529, 1)
-border_width_left = 0
-border_width_top = 0
-border_width_right = 0
-border_width_bottom = 0
+anti_aliasing = false
+
+[sub_resource type="StyleBoxFlat" id="SB_Disabled"]
+content_margin_left = 4.0
+content_margin_top = 2.0
+content_margin_right = 4.0
+content_margin_bottom = 2.0
+bg_color = Color(0.7529, 0.7529, 0.7529, 1)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.7529, 0.7529, 0.7529, 1)
 anti_aliasing = false
 
 [sub_resource type="StyleBoxFlat" id="SB_Focus"]
@@ -34,7 +43,6 @@ border_width_top = 2
 border_width_right = 2
 border_width_bottom = 2
 border_color = Color(1, 1, 1, 1)
-border_blend = false
 anti_aliasing = false
 
 [sub_resource type="StyleBoxFlat" id="SB_RaisedPressed"]
@@ -69,10 +77,6 @@ content_margin_top = 2.0
 content_margin_right = 2.0
 content_margin_bottom = 2.0
 bg_color = Color(1, 1, 0.7529, 1)
-border_width_left = 0
-border_width_top = 0
-border_width_right = 0
-border_width_bottom = 0
 anti_aliasing = false
 
 [sub_resource type="StyleBoxFlat" id="SB_TitleBar"]
@@ -94,19 +98,6 @@ border_width_top = 2
 border_width_right = 2
 border_width_bottom = 2
 border_color = Color(0.039, 0.039, 0.039, 1)
-anti_aliasing = false
-
-[sub_resource type="StyleBoxFlat" id="SB_Disabled"]
-content_margin_left = 4.0
-content_margin_top = 2.0
-content_margin_right = 4.0
-content_margin_bottom = 2.0
-bg_color = Color(0.7529, 0.7529, 0.7529, 1)
-border_width_left = 2
-border_width_top = 2
-border_width_right = 2
-border_width_bottom = 2
-border_color = Color(0.7529, 0.7529, 0.7529, 1)
 anti_aliasing = false
 
 [resource]

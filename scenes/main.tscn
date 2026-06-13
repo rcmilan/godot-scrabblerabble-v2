@@ -5,17 +5,16 @@
 [ext_resource type="Script" uid="uid://cuetud868qr0e" path="res://scripts/rack.gd" id="3_rack"]
 [ext_resource type="Theme" uid="uid://3pupw0vetlo0" path="res://themes/win95.tres" id="4_theme"]
 [ext_resource type="PackedScene" path="res://scenes/crt_overlay.tscn" id="5_crt"]
-[ext_resource type="Shader" path="res://shaders/holographic.gdshader" id="6_holo"]
-[ext_resource type="Script" path="res://scripts/recycle_bin.gd" id="7_bin"]
+[ext_resource type="Shader" uid="uid://bkoyk0s75wfft" path="res://shaders/holographic.gdshader" id="6_holo"]
+[ext_resource type="Script" uid="uid://cownpv8yk5s4w" path="res://scripts/recycle_bin.gd" id="7_bin"]
 
 [sub_resource type="FastNoiseLite" id="FNL_Score"]
-noise_type = 1
 
 [sub_resource type="NoiseTexture2D" id="NT_Score"]
 width = 64
 height = 64
-seamless = true
 noise = SubResource("FNL_Score")
+seamless = true
 
 [sub_resource type="ShaderMaterial" id="SM_Holo"]
 shader = ExtResource("6_holo")
@@ -23,7 +22,7 @@ shader_parameter/speed = 1.2
 shader_parameter/intensity = 0.5
 shader_parameter/noise_tex = SubResource("NT_Score")
 
-[node name="Main" type="Control"]
+[node name="Main" type="Control" unique_id=1973907118]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -33,9 +32,9 @@ grow_vertical = 2
 theme = ExtResource("4_theme")
 script = ExtResource("1_main")
 
-[node name="CRTOverlay" parent="." instance=ExtResource("5_crt")]
+[node name="CRTOverlay" parent="." unique_id=1540136152 instance=ExtResource("5_crt")]
 
-[node name="WinFrame" type="Panel" parent="."]
+[node name="WinFrame" type="Panel" parent="." unique_id=1326648179]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -44,8 +43,9 @@ grow_horizontal = 2
 grow_vertical = 2
 theme_type_variation = &"WindowFrame"
 
-[node name="InnerVBox" type="VBoxContainer" parent="WinFrame"]
+[node name="InnerVBox" type="VBoxContainer" parent="WinFrame" unique_id=1595115788]
 layout_mode = 1
+anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 2.0
@@ -55,104 +55,100 @@ offset_bottom = -2.0
 grow_horizontal = 2
 grow_vertical = 2
 
-[node name="TitleBar" type="Panel" parent="WinFrame/InnerVBox"]
-layout_mode = 2
+[node name="TitleBar" type="Panel" parent="WinFrame/InnerVBox" unique_id=951475714]
 custom_minimum_size = Vector2(0, 22)
+layout_mode = 2
 theme_type_variation = &"TitleBar"
 
-[node name="TitleContent" type="HBoxContainer" parent="WinFrame/InnerVBox/TitleBar"]
+[node name="TitleContent" type="HBoxContainer" parent="WinFrame/InnerVBox/TitleBar" unique_id=742531937]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
 offset_left = 4.0
 offset_right = -2.0
+grow_horizontal = 2
+grow_vertical = 2
 
-[node name="TitleLabel" type="Label" parent="WinFrame/InnerVBox/TitleBar/TitleContent"]
+[node name="TitleLabel" type="Label" parent="WinFrame/InnerVBox/TitleBar/TitleContent" unique_id=1138148821]
 layout_mode = 2
 size_flags_horizontal = 3
-text = "ScrabbleRabble 95"
 theme_override_colors/font_color = Color(1, 1, 1, 1)
+text = "ScrabbleRabble 95"
 
-[node name="WinButtons" type="HBoxContainer" parent="WinFrame/InnerVBox/TitleBar/TitleContent"]
+[node name="WinButtons" type="HBoxContainer" parent="WinFrame/InnerVBox/TitleBar/TitleContent" unique_id=2091292785]
 layout_mode = 2
 size_flags_horizontal = 8
-separation = 2
 
-[node name="MinBtn" type="Button" parent="WinFrame/InnerVBox/TitleBar/TitleContent/WinButtons"]
-layout_mode = 2
+[node name="MinBtn" type="Button" parent="WinFrame/InnerVBox/TitleBar/TitleContent/WinButtons" unique_id=2072427789]
 custom_minimum_size = Vector2(16, 14)
+layout_mode = 2
 focus_mode = 0
 text = "-"
-flat = false
 
-[node name="MaxBtn" type="Button" parent="WinFrame/InnerVBox/TitleBar/TitleContent/WinButtons"]
-layout_mode = 2
+[node name="MaxBtn" type="Button" parent="WinFrame/InnerVBox/TitleBar/TitleContent/WinButtons" unique_id=1859200257]
 custom_minimum_size = Vector2(16, 14)
+layout_mode = 2
 focus_mode = 0
 text = "O"
-flat = false
 
-[node name="CloseBtn" type="Button" parent="WinFrame/InnerVBox/TitleBar/TitleContent/WinButtons"]
-layout_mode = 2
+[node name="CloseBtn" type="Button" parent="WinFrame/InnerVBox/TitleBar/TitleContent/WinButtons" unique_id=724853805]
 custom_minimum_size = Vector2(16, 14)
+layout_mode = 2
 focus_mode = 0
 text = "X"
-flat = false
 
-[node name="GameArea" type="VBoxContainer" parent="WinFrame/InnerVBox"]
+[node name="GameArea" type="VBoxContainer" parent="WinFrame/InnerVBox" unique_id=1553186513]
 layout_mode = 2
 size_flags_vertical = 3
 alignment = 1
 
-[node name="HUD" type="HBoxContainer" parent="WinFrame/InnerVBox/GameArea"]
+[node name="HUD" type="HBoxContainer" parent="WinFrame/InnerVBox/GameArea" unique_id=2024802589]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 alignment = 1
 
-[node name="ScoreLabel" type="Label" parent="WinFrame/InnerVBox/GameArea/HUD"]
+[node name="ScoreLabel" type="Label" parent="WinFrame/InnerVBox/GameArea/HUD" unique_id=1747062985]
 unique_name_in_owner = true
+material = SubResource("SM_Holo")
 layout_mode = 2
 size_flags_horizontal = 3
-material = SubResource("SM_Holo")
 theme_type_variation = &"ScoreNeon"
 text = "Score: 0"
 
-[node name="TilesLeftLabel" type="Label" parent="WinFrame/InnerVBox/GameArea/HUD"]
+[node name="TilesLeftLabel" type="Label" parent="WinFrame/InnerVBox/GameArea/HUD" unique_id=232249434]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Placed: 0 / 4"
 
-[node name="EndTurnButton" type="Button" parent="WinFrame/InnerVBox/GameArea/HUD"]
+[node name="EndTurnButton" type="Button" parent="WinFrame/InnerVBox/GameArea/HUD" unique_id=532300904]
 unique_name_in_owner = true
 layout_mode = 2
 text = "END TURN"
 
-[node name="Board" type="GridContainer" parent="WinFrame/InnerVBox/GameArea"]
+[node name="Board" type="GridContainer" parent="WinFrame/InnerVBox/GameArea" unique_id=1653921811]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 4
 size_flags_vertical = 4
 script = ExtResource("2_board")
 
-[node name="RackRow" type="HBoxContainer" parent="WinFrame/InnerVBox/GameArea"]
+[node name="RackRow" type="HBoxContainer" parent="WinFrame/InnerVBox/GameArea" unique_id=976094477]
 layout_mode = 2
 size_flags_horizontal = 4
-alignment = 1
 theme_override_constants/separation = 16
+alignment = 1
 
-[node name="Rack" type="HBoxContainer" parent="WinFrame/InnerVBox/GameArea/RackRow"]
+[node name="Rack" type="HBoxContainer" parent="WinFrame/InnerVBox/GameArea/RackRow" unique_id=2038905677]
 unique_name_in_owner = true
 custom_minimum_size = Vector2(0, 56)
 layout_mode = 2
 alignment = 1
 script = ExtResource("3_rack")
 
-[node name="RecycleBin" type="Control" parent="WinFrame"]
+[node name="RecycleBin" type="Control" parent="WinFrame" unique_id=1645446138]
 unique_name_in_owner = true
 layout_mode = 1
 anchor_left = 1.0
@@ -160,10 +156,9 @@ anchor_top = 0.58
 anchor_right = 1.0
 anchor_bottom = 0.58
 offset_left = -118.0
-offset_top = -30.0
+offset_top = 148.0
 offset_right = -66.0
-offset_bottom = 30.0
+offset_bottom = 208.0
 grow_horizontal = 0
 grow_vertical = 2
 script = ExtResource("7_bin")
-
