@@ -25,7 +25,7 @@ var _anim_layer: CanvasLayer
 
 @onready var board:            Board  = %Board
 @onready var rack:             Rack   = %Rack
-@onready var recycle_bin:      RecycleBin = %RecycleBin
+@onready var recycle_bin:      Control = %RecycleBin
 @onready var score_label:      Label  = %ScoreLabel
 @onready var tiles_left_label: Label  = %TilesLeftLabel
 @onready var end_turn_button:  Button = %EndTurnButton
@@ -172,7 +172,7 @@ func discard_rack_tile(tile: Tile) -> void:
 	_anim_layer.add_child(old_tile)
 	old_tile.global_position = start
 	old_tile.pivot_offset = old_tile.size * 0.5
-	var bin_centre := recycle_bin.global_position + recycle_bin.size * 0.5
+	var bin_centre: Vector2 = recycle_bin.global_position + recycle_bin.size * 0.5
 	var tw := create_tween().set_parallel(true)
 	tw.tween_property(old_tile, "global_position", bin_centre - old_tile.size * 0.1, 0.25)
 	tw.tween_property(old_tile, "scale", Vector2(0.2, 0.2), 0.25)
