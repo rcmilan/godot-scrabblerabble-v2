@@ -131,3 +131,35 @@ generation and auto-pick are duplicated live/sim and must stay in sync.
 - **Expected autoplay log lines** at upgrade rounds:
   `[UpgradeWizard] autoplay pick — ...` followed by
   `[RunState] letter modifier set — ...`.
+
+## Discard Parity
+
+The live game and simulator both support tile discarding — a free action that swaps a rack tile for a replacement from the bag, with a per-round budget.
+
+### Core Mechanics (both live and sim)
+
+- **Constants:** `DISCARDS_PER_ROUND = 3` (mirrors `RunState` and `GameCore`)
+- **State:** `discards_left` tracks the remaining budget each round; reset in `_advance_round()` (live) and `_advance_round()` (sim)
+- **Draw:** `discard_tile(letter)` removes the tile from the rack and draws a **replacement excluding that letter** (prevents frustration of immediately redrawing the same tile). The replacement gets modifiers re-applied (same pass as refill).
+- **Determinism:** Seeded `rng` in `GameCore`, never global `randi()`. Under fixed seed, same discard produces same replacement.
+
+### Simulator Integration
+
+- **Strategy hook:** `Strategy.pick_discards(core)` returns letters to discard (default empty; existing strategies never discard).
+- **Execution:** `Simulator._run_game` calls `pick_discards` at the **start of each turn**, before `pick_moves`. Each discard is routed through `core.discard_tile()`.
+- **Demo strategy:** `DiscardWordSearchStrategy` extends `WordSearchStrategy` with "discard when stuck" logic:
+  - Calls `pick_moves` to check if the rack can form a valid word (≥2-tile placement signals success, 1-tile random fallback signals "stuck").
+  - If stuck: ditch the least-useful tile by vowel balance (drop surplus vowels if flooded, drop rare consonants if starved).
+  - Only spends discards when genuinely stuck, conserving the 3-per-round budget.
+
+### Test Coverage
+
+Three parity tests confirm discard mechanics:
+
+- `test_discard_excludes_same_letter`: replacement draw never returns the discarded letter.
+- `test_discard_budget_resets_each_round`: `discards_left` resets to `DISCARDS_PER_ROUND` after round advance.
+- `test_discard_deterministic_under_seed`: same seed produces identical replacement tiles.
+
+### Live Autoplay
+
+Live autoplay also executes discards: `_run_autoplay` calls `pick_discards` before placement, routes each through the animated `discard_rack_tile`, and poll-waits on `_discard_busy` between actions. The `DiscardWordSearchStrategy` is registered for both headless batch (sim) and live autoplay (`--autoplay=discard_word_search`), so the same strategy drives both paths.

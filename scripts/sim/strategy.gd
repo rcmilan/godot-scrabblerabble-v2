@@ -10,5 +10,11 @@ extends RefCounted
 func pick_moves(core) -> Array:
 	return []
 
+# Pick discards for this turn (before placing).
+# Returns an array of letters to discard: ["A", "B", ...]
+# Default empty — existing strategies never discard.
+func pick_discards(core) -> Array:
+	return []
+
 func get_name() -> String:
 	return "base"

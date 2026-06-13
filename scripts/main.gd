@@ -14,14 +14,18 @@ const RANDOM_STRATEGY           := preload("res://scripts/sim/strategies/random_
 const DIAGONAL_CLUSTER_STRATEGY := preload("res://scripts/sim/strategies/diagonal_cluster_strategy.gd")
 const HYBRID_WORD_DIAGONAL_STRATEGY := preload("res://scripts/sim/strategies/hybrid_word_diagonal_strategy.gd")
 const CORNER_SPIRAL_STRATEGY := preload("res://scripts/sim/strategies/corner_spiral_strategy.gd")
+const DISCARD_WORD_SEARCH_STRATEGY := preload("res://scripts/sim/strategies/discard_word_search.gd")
 
 const AUTOPLAY_STEP_MS: int = 200
 const UPGRADE_OFFER_COUNT: int = 3
 
 var _autoplay_active: bool = false
+var _discard_busy: bool = false
+var _anim_layer: CanvasLayer
 
 @onready var board:            Board  = %Board
 @onready var rack:             Rack   = %Rack
+@onready var recycle_bin:      Control = %RecycleBin
 @onready var score_label:      Label  = %ScoreLabel
 @onready var tiles_left_label: Label  = %TilesLeftLabel
 @onready var end_turn_button:  Button = %EndTurnButton
@@ -31,6 +35,9 @@ var cursor:        Vector2i = Vector2i(0, 0)
 
 func _ready() -> void:
 	add_to_group("main")
+	_anim_layer = CanvasLayer.new()
+	_anim_layer.layer = 40
+	add_child(_anim_layer)
 	randomize()
 	end_turn_button.pressed.connect(_on_end_turn_pressed)
 	cursor = Vector2i(3, 3)
@@ -47,21 +54,42 @@ func _on_cell_focused(cell: BoardCell) -> void:
 
 # ---------- Input ----------
 func _unhandled_input(event: InputEvent) -> void:
-	if RunState.is_game_over or RunState.is_transitioning or RunState.is_upgrading:
+	if RunState.is_game_over or RunState.is_transitioning or RunState.is_upgrading or _discard_busy:
 		return
 
+	if event is InputEventKey and event.pressed and not event.echo \
+			and (event.keycode == KEY_DELETE or event.keycode == KEY_BACKSPACE):
+		_handle_delete()
+		get_viewport().set_input_as_handled()
+		return
+
+	var focused = get_viewport().gui_get_focus_owner()
+	var rack_idx := rack.tiles_in_hand.find(focused)
+
+	if rack_idx != -1:
+		# --- in the rack ---
+		if event.is_action_pressed("ui_left"):
+			_focus_rack_index(rack_idx - 1); get_viewport().set_input_as_handled()
+		elif event.is_action_pressed("ui_right"):
+			_focus_rack_index(rack_idx + 1); get_viewport().set_input_as_handled()
+		elif event.is_action_pressed("ui_up"):
+			board.focus_cell(cursor); get_viewport().set_input_as_handled()
+		elif event.is_action_pressed("ui_down"):
+			get_viewport().set_input_as_handled()
+		return
+
+	# --- on the board ---
 	if event.is_action_pressed("ui_left"):
-		_move_cursor(Vector2i(-1, 0))
-		get_viewport().set_input_as_handled()
+		_move_cursor(Vector2i(-1, 0)); get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("ui_right"):
-		_move_cursor(Vector2i(1, 0))
-		get_viewport().set_input_as_handled()
+		_move_cursor(Vector2i(1, 0)); get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("ui_up"):
-		_move_cursor(Vector2i(0, -1))
-		get_viewport().set_input_as_handled()
+		_move_cursor(Vector2i(0, -1)); get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("ui_down"):
-		_move_cursor(Vector2i(0, 1))
-		get_viewport().set_input_as_handled()
+		if cursor.y >= Board.BOARD_SIZE - 1:
+			_enter_rack(); get_viewport().set_input_as_handled()
+		else:
+			_move_cursor(Vector2i(0, 1)); get_viewport().set_input_as_handled()
 	elif event.is_action_pressed("confirm_turn"):
 		_on_end_turn_pressed()
 	elif event is InputEventKey and event.pressed and not event.echo:
@@ -76,6 +104,14 @@ func _move_cursor(delta: Vector2i) -> void:
 	cursor = new_pos
 	board.focus_cell(cursor)
 
+func _enter_rack() -> void:
+	_focus_rack_index(clampi(cursor.x, 0, rack.tiles_in_hand.size() - 1))
+
+func _focus_rack_index(idx: int) -> void:
+	if rack.tiles_in_hand.is_empty():
+		return
+	rack.tiles_in_hand[clampi(idx, 0, rack.tiles_in_hand.size() - 1)].grab_focus()
+
 func _try_place_letter_on_cursor(letter: String) -> void:
 	var cell := board.get_cell(cursor)
 	if cell == null or not cell.is_empty():
@@ -87,7 +123,7 @@ func _try_place_letter_on_cursor(letter: String) -> void:
 
 # ---------- Drag and drop ----------
 func on_tile_dropped_on_cell(tile: Tile, cell: BoardCell) -> void:
-	if RunState.is_transitioning or RunState.is_upgrading or not cell.is_empty():
+	if RunState.is_transitioning or RunState.is_upgrading or _discard_busy or not cell.is_empty():
 		return
 	_place_tile_on_cell(tile, cell)
 
@@ -119,6 +155,78 @@ func _place_tile_on_cell(tile: Tile, cell: BoardCell) -> void:
 	_update_hud()
 	if pending_cells.size() >= RunState.tiles_per_turn:
 		_on_end_turn_pressed()
+
+func discard_rack_tile(tile: Tile) -> void:
+	if _discard_busy: return
+	if RunState.is_game_over or RunState.is_transitioning or RunState.is_upgrading: return
+	if RunState.discards_left <= 0: return
+	if not rack.tiles_in_hand.has(tile): return
+	var start := tile.global_position
+	var result := rack.discard_replace(tile)
+	if result.is_empty(): return
+	RunState.use_discard()
+	print("[Discard] rack discard — %s, %d left" % [tile.letter, RunState.discards_left])
+	_discard_busy = true
+	var old_tile := result["old_tile"] as Tile
+	var new_tile := result["new_tile"] as Tile
+	_anim_layer.add_child(old_tile)
+	old_tile.global_position = start
+	old_tile.pivot_offset = old_tile.size * 0.5
+	var bin_centre: Vector2 = recycle_bin.global_position + recycle_bin.size * 0.5
+	var tw := create_tween().set_parallel(true)
+	tw.tween_property(old_tile, "global_position", bin_centre - old_tile.size * 0.1, 0.25)
+	tw.tween_property(old_tile, "scale", Vector2(0.2, 0.2), 0.25)
+	tw.tween_property(old_tile, "modulate:a", 0.0, 0.25)
+	# new tile pop-in
+	new_tile.pivot_offset = new_tile.size * 0.5
+	new_tile.scale = Vector2(0.1, 0.1)
+	create_tween().tween_property(new_tile, "scale", Vector2.ONE, 0.18) \
+		.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	tw.chain().tween_callback(func() -> void:
+		old_tile.queue_free()
+		_discard_busy = false
+	)
+
+func _handle_delete() -> void:
+	var focused = get_viewport().gui_get_focus_owner()
+	var rack_idx := rack.tiles_in_hand.find(focused)
+	if rack_idx != -1:
+		discard_rack_tile(focused as Tile)
+		_focus_rack_index(rack_idx)   # focus the replacement in the same slot
+	elif focused is BoardCell:
+		var cell := focused as BoardCell
+		if cell.current_tile != null:
+			_return_pending_tile(cell.current_tile)
+
+func _return_pending_tile(tile: Tile) -> void:
+	if _discard_busy: return
+	_discard_busy = true
+	print("[Discard] board tile returned — %s" % tile.letter)
+	var prev_cell := board.get_cell(tile.board_pos)
+	var start := prev_cell.global_position if prev_cell else tile.global_position
+	if prev_cell:
+		prev_cell.clear_pending()
+		pending_cells.erase(prev_cell)
+	tile.location = "rack"
+	tile.board_pos = Vector2i(-1, -1)
+	tile.visible = true
+	if tile.get_parent():
+		tile.get_parent().remove_child(tile)
+	_anim_layer.add_child(tile)
+	tile.global_position = start
+	# Target: where the tile will sit after joining the rack (approx the
+	# rack's right edge). Tween there, then hand off to the rack.
+	var target := rack.global_position + Vector2(rack.size.x, 0)
+	var tw := create_tween()
+	tw.tween_property(tile, "global_position", target, 0.25).set_ease(Tween.EASE_OUT)
+	tw.tween_callback(func() -> void:
+		_anim_layer.remove_child(tile)
+		rack.add_child(tile)
+		rack.tiles_in_hand.append(tile)
+		_update_hud()
+		_discard_busy = false
+		board.focus_cell(cursor)
+	)
 
 # ---------- End of turn ----------
 func _on_end_turn_pressed() -> void:
@@ -425,6 +533,7 @@ func _build_strategy(name: String):
 		"diagonal_cluster": return DIAGONAL_CLUSTER_STRATEGY.new()
 		"hybrid_word_diagonal": return HYBRID_WORD_DIAGONAL_STRATEGY.new()
 		"corner_spiral":    return CORNER_SPIRAL_STRATEGY.new()
+		"discard_word_search": return DISCARD_WORD_SEARCH_STRATEGY.new()
 		_:                  return null
 
 func _run_autoplay(strategy) -> void:
@@ -435,6 +544,17 @@ func _run_autoplay(strategy) -> void:
 		if RunState.is_transitioning or RunState.is_upgrading:
 			await get_tree().create_timer(0.2).timeout
 			continue
+		adapter.refresh(RunState.tiles_per_turn)
+		for letter in strategy.pick_discards(adapter):
+			if RunState.discards_left <= 0:
+				break
+			var t := rack.find_tile_with_letter(letter)
+			if t == null:
+				continue
+			discard_rack_tile(t)
+			while _discard_busy:
+				await get_tree().create_timer(0.05).timeout
+			await get_tree().create_timer(AUTOPLAY_STEP_MS / 1000.0).timeout
 		adapter.refresh(RunState.tiles_per_turn)
 		var moves: Array = strategy.pick_moves(adapter)
 		if moves.is_empty():
@@ -473,9 +593,16 @@ func _run_autoplay(strategy) -> void:
 class _AutoplayAdapter:
 	extends RefCounted
 	const BOARD_SIZE: int = 8
+	const LETTER_DISTRIBUTION = {
+		"A": 9, "B": 2, "C": 2, "D": 4, "E": 12, "F": 2, "G": 3,
+		"H": 2, "I": 9, "J": 1, "K": 1, "L": 4, "M": 2, "N": 6,
+		"O": 8, "P": 2, "Q": 1, "R": 6, "S": 4, "T": 6, "U": 4,
+		"V": 2, "W": 2, "X": 1, "Y": 2, "Z": 1,
+	}
 	var board: Array = []
 	var rack: Array = []
 	var tiles_per_turn: int = 0
+	var discards_left: int = 0
 	var rng: RandomNumberGenerator
 	var _board_node
 	var _rack_node
@@ -486,6 +613,7 @@ class _AutoplayAdapter:
 		rng.randomize()
 	func refresh(current_tiles_per_turn: int) -> void:
 		tiles_per_turn = current_tiles_per_turn
+		discards_left = RunState.discards_left
 		board.clear()
 		board.resize(BOARD_SIZE)
 		for x in BOARD_SIZE:

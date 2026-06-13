@@ -18,6 +18,9 @@ func refill() -> void:
 		tile.letter = letter
 		add_child(tile)
 		tiles_in_hand.append(tile)
+	_apply_modifiers()
+
+func _apply_modifiers() -> void:
 	for tile in tiles_in_hand:
 		if RunState.letter_modifiers.has(tile.letter):
 			tile.set_modifier(RunState.letter_modifiers[tile.letter])
@@ -31,6 +34,31 @@ func _draw_random_letter() -> String:
 		for i in GameData.LETTER_DISTRIBUTION[letter]:
 			bag.append(letter)
 	return bag[randi() % bag.size()]
+
+func _draw_random_letter_excluding(excluded: String) -> String:
+	var bag: Array[String] = []
+	for letter in GameData.LETTER_DISTRIBUTION.keys():
+		if letter == excluded:
+			continue
+		for i in GameData.LETTER_DISTRIBUTION[letter]:
+			bag.append(letter)
+	return bag[randi() % bag.size()]
+
+func discard_replace(old_tile: Tile) -> Dictionary:
+	var idx := tiles_in_hand.find(old_tile)
+	if idx == -1:
+		return {}
+	var old_letter := old_tile.letter
+	tiles_in_hand.remove_at(idx)
+	if old_tile.get_parent() == self:
+		remove_child(old_tile)
+	var new_tile := TILE_SCENE.instantiate() as Tile
+	new_tile.letter = _draw_random_letter_excluding(old_letter)
+	add_child(new_tile)
+	move_child(new_tile, idx)
+	tiles_in_hand.insert(idx, new_tile)
+	_apply_modifiers()
+	return {"old_tile": old_tile, "new_tile": new_tile, "slot": idx}
 
 func _ensure_modifier_count_in_rack(mod: String, required_count: int) -> void:
 	# 1. Count tiles already carrying this modifier.

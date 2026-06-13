@@ -3,6 +3,7 @@ extends Node
 signal round_started(round_num: int, target: int, turns_left: int)
 signal round_score_changed(round_score: int, target: int)
 signal turns_left_changed(turns_left: int)
+signal discards_left_changed(discards_left: int)
 signal round_won(round_num: int, round_score: int, target: int)
 signal game_over(final_round: int, final_round_score: int, final_target: int)
 
@@ -10,6 +11,7 @@ const TURNS_PER_ROUND:        int = 3
 const INITIAL_TILES_PER_TURN: int = 4
 const INITIAL_TARGET_SCORE:   int = 20
 const UPGRADE_EVERY_N_ROUNDS: int = 3
+const DISCARDS_PER_ROUND:     int = 3
 
 var current_round:  int   = 1
 var round_score:    int   = 0
@@ -19,6 +21,7 @@ var tiles_per_turn: int   = INITIAL_TILES_PER_TURN
 var is_game_over:   bool  = false
 var is_transitioning: bool = false
 var is_upgrading:   bool  = false
+var discards_left:  int   = DISCARDS_PER_ROUND
 var autoplay_run_completed: bool = false
 var history:        Array = []
 var modifier_build: Dictionary = {}   # { "2x": int, ... }  keyed by mod constant
@@ -41,6 +44,8 @@ func reset() -> void:
 	_t_prev      = 0.0
 	_t_curr      = float(INITIAL_TARGET_SCORE)
 	target_score = INITIAL_TARGET_SCORE
+	discards_left = DISCARDS_PER_ROUND
+	discards_left_changed.emit(discards_left)
 	print("[RunState] reset — round 1, target %d, %d tiles/turn" % [target_score, tiles_per_turn])
 	round_started.emit(current_round, target_score, turns_left)
 
@@ -54,6 +59,11 @@ func add_to_build(mod: String) -> void:
 func set_letter_modifier(letter: String, mod: String) -> void:
 	letter_modifiers[letter] = mod
 	print("[RunState] letter modifier set — %s → %s" % [letter, mod])
+
+func use_discard() -> void:
+	discards_left -= 1
+	print("[Discard] used — %d left" % discards_left)
+	discards_left_changed.emit(discards_left)
 
 func register_turn_score(points: int) -> void:
 	round_score += points
@@ -77,6 +87,8 @@ func _advance_round() -> void:
 	round_score     = 0
 	turns_left      = TURNS_PER_ROUND
 	tiles_per_turn += 1
+	discards_left = DISCARDS_PER_ROUND
+	discards_left_changed.emit(discards_left)
 	if current_round == 2:
 		_t_prev      = _t_curr
 		_t_curr      = 30.0
