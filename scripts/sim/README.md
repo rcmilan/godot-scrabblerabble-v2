@@ -46,6 +46,10 @@ The following constants and functions were copied verbatim:
 
 Once the simulator is proven useful, refactor `main.gd` and `run_state.gd` to delegate to `GameCore`, eliminating the duplication. At that point, `game_core.gd` becomes the single source of truth for all game logic.
 
+## Difficulty Modes (Live-only)
+
+Easy/Medium/Hard difficulty modes (with target tables, 5-round cap, `run_finished` signal, `total_score` tracking, and session high scores) are **live game only** and intentionally **NOT modeled in `game_core.gd`**. The simulator always runs Endless mode. This keeps the simulator focused on strategy evaluation under the classic unbounded curve and avoids duplicating high-score infrastructure.
+
 ## Modifiers
 
 `game_core.gd` tracks a parallel board array `board_modifiers[x][y]` (same shape as `board`) alongside the letter grid. Each cell stores `MOD_NONE` (`""`) or `MOD_2X` (`"2x"`).
@@ -86,7 +90,8 @@ A healthy headless autoplay run emits these log lines in order:
 
 ```
 [StartScreen] ready — menu shown
-[StartScreen] autoplay detected — pressing Start
+[StartScreen] autoplay detected — launching Endless
+[StartScreen] mode selected — Endless
 [StartScreen] launch glitch — 12 ghosts stamped
 [StartScreen] launching main scene
 [Autoplay] starting with strategy=<strategy>, step=200ms

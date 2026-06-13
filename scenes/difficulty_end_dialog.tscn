@@ -1,0 +1,125 @@
+[gd_scene load_steps=2 format=3 uid="uid://b8diffenddlg01"]
+
+[ext_resource type="Script" path="res://scripts/difficulty_end_dialog.gd" id="1"]
+
+[node name="DifficultyEndDialog" type="Panel"]
+custom_minimum_size = Vector2(340, 230)
+size = Vector2(340, 230)
+theme_type_variation = &"WindowFrame"
+script = ExtResource("1")
+
+[node name="InnerVBox" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 2.0
+offset_top = 2.0
+offset_right = -2.0
+offset_bottom = -2.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="TitleBar" type="Panel" parent="InnerVBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 22)
+theme_type_variation = &"TitleBar"
+
+[node name="TitleContent" type="HBoxContainer" parent="InnerVBox/TitleBar"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+offset_left = 4.0
+offset_right = -2.0
+
+[node name="TitleLabel" type="Label" parent="InnerVBox/TitleBar/TitleContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "You Win!"
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+
+[node name="WinButtons" type="HBoxContainer" parent="InnerVBox/TitleBar/TitleContent"]
+layout_mode = 2
+size_flags_horizontal = 8
+separation = 2
+
+[node name="MinBtn" type="Button" parent="InnerVBox/TitleBar/TitleContent/WinButtons"]
+layout_mode = 2
+custom_minimum_size = Vector2(16, 14)
+focus_mode = 0
+text = "-"
+
+[node name="MaxBtn" type="Button" parent="InnerVBox/TitleBar/TitleContent/WinButtons"]
+layout_mode = 2
+custom_minimum_size = Vector2(16, 14)
+focus_mode = 0
+text = "O"
+
+[node name="CloseBtn" type="Button" parent="InnerVBox/TitleBar/TitleContent/WinButtons"]
+layout_mode = 2
+custom_minimum_size = Vector2(16, 14)
+focus_mode = 0
+text = "X"
+
+[node name="BodyArea" type="VBoxContainer" parent="InnerVBox"]
+layout_mode = 2
+size_flags_vertical = 3
+alignment = 1
+
+[node name="TopSpacer" type="Control" parent="InnerVBox/BodyArea"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 8)
+
+[node name="ResultLabel" type="Label" parent="InnerVBox/BodyArea"]
+layout_mode = 2
+size_flags_horizontal = 3
+horizontal_alignment = 1
+text = ""
+
+[node name="ScoreLabel" type="Label" parent="InnerVBox/BodyArea"]
+layout_mode = 2
+size_flags_horizontal = 3
+horizontal_alignment = 1
+text = ""
+
+[node name="BestLabel" type="Label" parent="InnerVBox/BodyArea"]
+layout_mode = 2
+size_flags_horizontal = 3
+horizontal_alignment = 1
+text = ""
+
+[node name="NewHighLabel" type="Label" parent="InnerVBox/BodyArea"]
+layout_mode = 2
+size_flags_horizontal = 3
+horizontal_alignment = 1
+text = "★ NEW HIGH SCORE! ★"
+theme_override_colors/font_color = Color(0, 0, 0.5019, 1)
+
+[node name="MidSpacer" type="Control" parent="InnerVBox/BodyArea"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 12)
+
+[node name="ButtonRow" type="HBoxContainer" parent="InnerVBox/BodyArea"]
+layout_mode = 2
+alignment = 1
+
+[node name="PlayAgainButton" type="Button" parent="InnerVBox/BodyArea/ButtonRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(96, 24)
+text = "Play Again"
+
+[node name="Gap" type="Control" parent="InnerVBox/BodyArea/ButtonRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(12, 0)
+
+[node name="MenuButton" type="Button" parent="InnerVBox/BodyArea/ButtonRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(96, 24)
+text = "Menu"
+
+[node name="BottomSpacer" type="Control" parent="InnerVBox/BodyArea"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 8)

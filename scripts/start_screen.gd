@@ -6,21 +6,27 @@ const GHOST_STEP_PX:     float = 20.0
 const GHOST_STEPS:       int   = 12
 const GHOST_STEP_SEC:    float = 0.06
 
-@onready var title_dialog: Panel  = $TitleDialog
-@onready var start_button: Button = $TitleDialog/InnerVBox/BodyArea/ButtonRow/StartButton
-@onready var quit_button:  Button = $TitleDialog/InnerVBox/BodyArea/ButtonRow/QuitButton
-@onready var close_btn:    Button = $TitleDialog/InnerVBox/TitleBar/TitleContent/WinButtons/CloseBtn
-@onready var subtitle:     Label  = $TitleDialog/InnerVBox/BodyArea/Subtitle
+@onready var title_dialog:   Panel  = $TitleDialog
+@onready var easy_button:    Button = $TitleDialog/InnerVBox/BodyArea/MenuButtons/EasyButton
+@onready var medium_button:  Button = $TitleDialog/InnerVBox/BodyArea/MenuButtons/MediumButton
+@onready var hard_button:    Button = $TitleDialog/InnerVBox/BodyArea/MenuButtons/HardButton
+@onready var endless_button: Button = $TitleDialog/InnerVBox/BodyArea/MenuButtons/EndlessButton
+@onready var quit_button:    Button = $TitleDialog/InnerVBox/BodyArea/MenuButtons/QuitButton
+@onready var close_btn:      Button = $TitleDialog/InnerVBox/TitleBar/TitleContent/WinButtons/CloseBtn
+@onready var subtitle:       Label  = $TitleDialog/InnerVBox/BodyArea/Subtitle
 
 var _launching: bool = false
 
 func _ready() -> void:
 	var vp_size := Vector2(get_viewport_rect().size)
 	title_dialog.position = (vp_size - title_dialog.custom_minimum_size) / 2.0
-	start_button.pressed.connect(_on_start_pressed)
+	easy_button.pressed.connect(func() -> void: _on_mode_selected(RunState.Mode.EASY))
+	medium_button.pressed.connect(func() -> void: _on_mode_selected(RunState.Mode.MEDIUM))
+	hard_button.pressed.connect(func() -> void: _on_mode_selected(RunState.Mode.HARD))
+	endless_button.pressed.connect(func() -> void: _on_mode_selected(RunState.Mode.ENDLESS))
 	quit_button.pressed.connect(_on_quit_pressed)
 	close_btn.pressed.connect(_on_quit_pressed)
-	start_button.grab_focus()
+	easy_button.grab_focus()
 	_set_random_subtitle()
 	print("[StartScreen] ready — menu shown")
 	_maybe_autoplay()
@@ -40,12 +46,17 @@ func _set_random_subtitle() -> void:
 	subtitle.text = " · ".join(picked)
 	print("[StartScreen] subtitle words — %s" % ", ".join(picked))
 
-func _on_start_pressed() -> void:
+func _on_mode_selected(mode: int) -> void:
 	if _launching:
 		return
 	_launching = true
-	start_button.disabled = true
+	easy_button.disabled = true
+	medium_button.disabled = true
+	hard_button.disabled = true
+	endless_button.disabled = true
 	quit_button.disabled = true
+	RunState.mode = mode
+	print("[StartScreen] mode selected — %s" % RunState.mode_name())
 	_play_launch_glitch()
 
 func _play_launch_glitch() -> void:
@@ -96,6 +107,6 @@ func _maybe_autoplay() -> void:
 		print("[StartScreen] run complete — quitting")
 		get_tree().quit()
 		return
-	print("[StartScreen] autoplay detected — pressing Start")
+	print("[StartScreen] autoplay detected — launching Endless")
 	await get_tree().create_timer(0.3).timeout
-	_on_start_pressed()
+	_on_mode_selected(RunState.Mode.ENDLESS)
