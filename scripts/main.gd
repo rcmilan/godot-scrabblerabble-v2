@@ -7,6 +7,7 @@ const GLITTER_SCENE          := preload("res://scenes/glitter_emitter.tscn")
 const GAME_OVER_SCENE        := preload("res://scenes/game_over_dialog.tscn")
 const ROUND_TRANSITION_SCENE := preload("res://scenes/round_transition.tscn")
 const UPGRADE_DIALOG_SCENE   := preload("res://scenes/upgrade_dialog.tscn")
+const DIFFICULTY_END_SCENE   := preload("res://scenes/difficulty_end_dialog.tscn")
 
 const WORD_SEARCH_STRATEGY      := preload("res://scripts/sim/strategies/word_search_strategy.gd")
 const GREEDY_STRATEGY           := preload("res://scripts/sim/strategies/greedy_strategy.gd")
@@ -46,6 +47,7 @@ func _ready() -> void:
 	RunState.reset()
 	RunState.round_won.connect(_on_round_won)
 	RunState.game_over.connect(_on_game_over)
+	RunState.run_finished.connect(_on_run_finished)
 	_update_hud()
 	_maybe_start_autoplay()
 
@@ -376,8 +378,13 @@ func _extract_word_in_direction(cell: BoardCell, dir: Vector2i) -> Dictionary:
 	return {"text": text, "start": start_pos, "cells": cells_arr}
 
 func _update_hud() -> void:
-	score_label.text      = "Score: %d  |  Round %d  |  Target: %d" % [
-		RunState.round_score, RunState.current_round, RunState.target_score]
+	var round_str: String
+	if RunState.is_difficulty_mode():
+		round_str = "Round %d / 5" % RunState.current_round
+	else:
+		round_str = "Round %d" % RunState.current_round
+	score_label.text      = "Total: %d  |  %s  |  %d / %d" % [
+		RunState.total_score, round_str, RunState.round_score, RunState.target_score]
 	tiles_left_label.text = "Turns left: %d  |  Tiles/turn: %d" % [
 		RunState.turns_left, RunState.tiles_per_turn]
 
@@ -503,6 +510,29 @@ func _on_game_over(final_round: int, final_round_score: int, final_target: int) 
 	if _autoplay_strategy_arg() != "":
 		RunState.autoplay_run_completed = true
 		_autoplay_quit_game_over(dialog)
+
+func _on_run_finished(won: bool, final_round: int, total: int) -> void:
+	_autoplay_active = false
+	_update_hud()
+	if won:
+		var emitter: GPUParticles2D = GLITTER_SCENE.instantiate()
+		add_child(emitter)
+		emitter.global_position = board.global_position + board.size * 0.5
+	var is_new := RunState.record_high_score(total)
+	var best: int = RunState.session_high_scores[RunState.mode]
+	var dialog := DIFFICULTY_END_SCENE.instantiate()
+	dialog.setup(won, final_round, total, best, is_new)
+	var layer := CanvasLayer.new()
+	layer.layer = 50
+	add_child(layer)
+	var blocker := Control.new()
+	blocker.name = "ModalBlocker"
+	blocker.set_anchors_preset(Control.PRESET_FULL_RECT)
+	blocker.mouse_filter = Control.MOUSE_FILTER_STOP
+	layer.add_child(blocker)
+	layer.add_child(dialog)
+	var vp_size := get_viewport().get_visible_rect().size
+	dialog.position = (vp_size - dialog.custom_minimum_size) / 2.0
 
 # ---------- Autoplay ----------
 func _maybe_start_autoplay() -> void:
