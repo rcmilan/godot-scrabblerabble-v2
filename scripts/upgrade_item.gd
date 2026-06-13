@@ -44,8 +44,8 @@ func _draw() -> void:
 		_draw_mod3x_body(body_rect)
 	else:
 		_draw_mod2x_body(body_rect)
-	if has_focus() and size.x >= 4.0 and size.y >= 4.0:
-		draw_rect(Rect2(Vector2.ZERO, size), C_FOCUS_BORDER, false, 2.0)
+	if has_focus():
+		draw_rect(body_rect.grow(2.0), C_FOCUS_BORDER, false, 2.0)
 
 func _gui_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_accept"):

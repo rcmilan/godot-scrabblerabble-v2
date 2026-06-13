@@ -56,6 +56,11 @@ func _draw() -> void:
 	if w < 4 or h < 4:
 		return
 
+	# Centered 56x56 body rect
+	var body_x := (size.x - BODY_SIZE.x) * 0.5
+	var body_y := 0.0  # Full height
+	var body_rect := Rect2(Vector2(body_x, body_y), BODY_SIZE)
+
 	# Win95 raised bevel — same lines as tile.gd _draw()
 	draw_line(Vector2(0, 0),     Vector2(w - 1, 0),     C_OUTER_LIGHT)
 	draw_line(Vector2(0, 0),     Vector2(0, h - 1),     C_OUTER_LIGHT)
@@ -85,7 +90,7 @@ func _draw() -> void:
 				font_size_pts, C_LABEL_POINT)
 
 	if has_focus():
-		draw_rect(Rect2(Vector2.ZERO, size), C_FOCUS_BORDER, false, 2.0)
+		draw_rect(body_rect.grow(2.0), C_FOCUS_BORDER, false, 2.0)
 
 func _gui_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_accept"):

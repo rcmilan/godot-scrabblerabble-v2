@@ -305,6 +305,13 @@ func _show_upgrade_dialog() -> void:
 	var layer := CanvasLayer.new()
 	layer.layer = 50
 	add_child(layer)
+
+	var blocker := Control.new()
+	blocker.name = "ModalBlocker"
+	blocker.set_anchors_preset(Control.PRESET_FULL_RECT)
+	blocker.mouse_filter = Control.MOUSE_FILTER_STOP
+	layer.add_child(blocker)
+
 	layer.add_child(dialog)
 
 	# Center dialog; use custom_minimum_size since size is (0,0) before first layout pass.
@@ -398,6 +405,13 @@ func _on_game_over(final_round: int, final_round_score: int, final_target: int) 
 	# Below the CRT overlay (layer 100) so scanlines/vignette draw over the dialog.
 	layer.layer = 50
 	add_child(layer)
+
+	var blocker := Control.new()
+	blocker.name = "ModalBlocker"
+	blocker.set_anchors_preset(Control.PRESET_FULL_RECT)
+	blocker.mouse_filter = Control.MOUSE_FILTER_STOP
+	layer.add_child(blocker)
+
 	layer.add_child(dialog)
 	# Center the dialog. custom_minimum_size is reliable at this point;
 	# size is still (0,0) before the first layout pass.
