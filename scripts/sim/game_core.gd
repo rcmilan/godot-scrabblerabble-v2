@@ -13,6 +13,7 @@ const WORD_BONUS_MULTIPLIER:  int = 2
 const BOARD_SIZE:             int = 8
 const RACK_SIZE:              int = 7
 const UPGRADE_EVERY_N_ROUNDS: int = 3
+const UPGRADE_OFFER_COUNT: int = 3
 
 const MOD_NONE: String = ""
 const MOD_2X:   String = "2x"
@@ -203,18 +204,15 @@ func end_turn(pending_positions: Array) -> int:
 	turns_left -= 1
 	if round_score >= target_score:
 		_advance_round()
-		# Mirror the upgrade-dialog auto-pick: at each UPGRADE_EVERY_N_ROUNDS interval
-		# the sim automatically adds one MOD_2X to the build, matching player behaviour.
-		# Upgrades do NOT carry over — each eligible round offers exactly one pick.
 		if current_round > 1 and (current_round - 1) % UPGRADE_EVERY_N_ROUNDS == 0:
-			var options := _generate_letter_options(5)
-			var best := options[0]
-			for l in options:
-				if LETTER_POINTS.get(l, 0) > LETTER_POINTS.get(best, 0):
-					best = l
-			var offered_mod := MOD_3X if rng.randi() % 3 == 0 else MOD_2X
-			letter_modifiers[best] = offered_mod
-			print("[GameCore] upgrade auto-pick — %s → %s" % [offered_mod, best])
+			var offers := _generate_upgrade_offers()
+			if not offers.is_empty():
+				var best: Dictionary = offers[0]
+				for offer in offers:
+					if _offer_value(offer) > _offer_value(best):
+						best = offer
+				letter_modifiers[best["letter"]] = best["modifier"]
+				print("[GameCore] upgrade auto-pick — %s ×%s" % [best["letter"], best["modifier"]])
 	elif turns_left <= 0:
 		is_game_over = true
 	refill_rack()
@@ -328,6 +326,36 @@ func clear_board() -> void:
 		for y in BOARD_SIZE:
 			board[x][y] = ""
 			board_modifiers[x][y] = MOD_NONE
+
+func _generate_upgrade_offers() -> Array[Dictionary]:
+	var pool: Array[String] = []
+	for letter in LETTER_DISTRIBUTION:
+		if letter_modifiers.has(letter):
+			continue
+		for i in LETTER_DISTRIBUTION[letter]:
+			pool.append(letter)
+	var offers: Array[Dictionary] = []
+	var picked: Array[String] = []
+	var distinct_count := 0
+	for letter in LETTER_DISTRIBUTION:
+		if not letter_modifiers.has(letter):
+			distinct_count += 1
+	while offers.size() < UPGRADE_OFFER_COUNT and not pool.is_empty():
+		if picked.size() >= distinct_count:
+			break
+		var letter: String = pool[rng.randi() % pool.size()]
+		if picked.has(letter):
+			continue
+		picked.append(letter)
+		var mod: String = MOD_3X if rng.randi() % 3 == 0 else MOD_2X
+		offers.append({"letter": letter, "modifier": mod})
+	if offers.size() < UPGRADE_OFFER_COUNT:
+		print("[GameCore] letter pool exhausted — offering %d" % offers.size())
+	return offers
+
+func _offer_value(offer: Dictionary) -> int:
+	var mult := 3 if offer["modifier"] == MOD_3X else 2
+	return LETTER_DISTRIBUTION[offer["letter"]] * LETTER_POINTS[offer["letter"]] * mult
 
 func _advance_round() -> void:
 	# Reset round state BEFORE advancing target, so progression is correct.

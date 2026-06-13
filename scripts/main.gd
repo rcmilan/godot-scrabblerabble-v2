@@ -17,6 +17,7 @@ const HYBRID_WORD_DIAGONAL_STRATEGY := preload("res://scripts/sim/strategies/hyb
 const CORNER_SPIRAL_STRATEGY := preload("res://scripts/sim/strategies/corner_spiral_strategy.gd")
 
 const AUTOPLAY_STEP_MS: int = 200
+const UPGRADE_OFFER_COUNT: int = 3
 
 var _autoplay_active: bool = false
 
@@ -294,7 +295,8 @@ func _on_transition_finished() -> void:
 		board.focus_cell(cursor)
 
 func _show_upgrade_dialog() -> void:
-	var offered_id := GameData.MOD_3X if randi() % 3 == 0 else GameData.MOD_2X
+	var offers := _generate_upgrade_offers()
+	var offered_id: String = offers[0]["modifier"] if not offers.is_empty() else GameData.MOD_2X
 	var upgrades: Array[Dictionary] = [
 		{"id": offered_id},
 	]
@@ -360,6 +362,32 @@ func _show_letter_picker(upgrade_id: String, upgrade_dialog: Node, upgrade_layer
 
 	if _autoplay_active:
 		_autoplay_pick_letter(picker, letters)
+
+func _generate_upgrade_offers() -> Array[Dictionary]:
+	var pool: Array[String] = []
+	for letter in GameData.LETTER_DISTRIBUTION:
+		if RunState.letter_modifiers.has(letter):
+			continue
+		for i in GameData.LETTER_DISTRIBUTION[letter]:
+			pool.append(letter)
+	var offers: Array[Dictionary] = []
+	var picked: Array[String] = []
+	var distinct_count := 0
+	for letter in GameData.LETTER_DISTRIBUTION:
+		if not RunState.letter_modifiers.has(letter):
+			distinct_count += 1
+	while offers.size() < UPGRADE_OFFER_COUNT and not pool.is_empty():
+		if picked.size() >= distinct_count:
+			break
+		var letter: String = pool[randi() % pool.size()]
+		if picked.has(letter):
+			continue
+		picked.append(letter)
+		var mod: String = GameData.MOD_3X if randi() % 3 == 0 else GameData.MOD_2X
+		offers.append({"letter": letter, "modifier": mod})
+	if offers.size() < UPGRADE_OFFER_COUNT:
+		print("[UpgradeWizard] letter pool exhausted — offering %d" % offers.size())
+	return offers
 
 func _generate_letter_options(count: int) -> Array[String]:
 	var all_letters := "ABCDEFGHIJKLMNOPQRSTUVWXYZ"

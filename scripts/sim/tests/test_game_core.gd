@@ -372,3 +372,47 @@ func test_upgrade_auto_pick_at_intervals() -> bool:
 			return false
 
 	return true
+
+# TSM11 - Upgrade offers: distinct, unowned letters; deterministic with fixed seed
+func test_upgrade_offers_distinct_unowned_deterministic() -> bool:
+	# Test A: offers contain no already-owned letters and are distinct
+	var core = GameCore.new(12345)
+	core.letter_modifiers["A"] = GameCore.MOD_2X
+	core.letter_modifiers["E"] = GameCore.MOD_3X
+	var offers = core._generate_upgrade_offers()
+
+	if offers.size() > GameCore.UPGRADE_OFFER_COUNT:
+		push_error("TSM11A: expected at most %d offers, got %d" % [GameCore.UPGRADE_OFFER_COUNT, offers.size()])
+		return false
+
+	var seen: Array[String] = []
+	for offer in offers:
+		var letter: String = offer["letter"]
+		# Check it's not already owned
+		if core.letter_modifiers.has(letter):
+			push_error("TSM11A: offer letter '%s' is already owned" % letter)
+			return false
+		# Check it's distinct
+		if letter in seen:
+			push_error("TSM11A: offer letter '%s' appears twice" % letter)
+			return false
+		seen.append(letter)
+
+	# Test B: same seed produces same offers (determinism)
+	var core_a = GameCore.new(54321)
+	var offers_a = core_a._generate_upgrade_offers()
+	var core_b = GameCore.new(54321)
+	var offers_b = core_b._generate_upgrade_offers()
+
+	if offers_a.size() != offers_b.size():
+		push_error("TSM11B: same seed produced different offer counts: %d vs %d" % [offers_a.size(), offers_b.size()])
+		return false
+
+	for i in offers_a.size():
+		var oa: Dictionary = offers_a[i]
+		var ob: Dictionary = offers_b[i]
+		if oa["letter"] != ob["letter"] or oa["modifier"] != ob["modifier"]:
+			push_error("TSM11B: same seed produced different offers at index %d" % i)
+			return false
+
+	return true
