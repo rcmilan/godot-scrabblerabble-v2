@@ -19,10 +19,8 @@ const C_MOD_GRADIENT_RIGHT   := Color(16.0/255.0, 132.0/255.0, 208.0/255.0, 1.0)
 const C_MOD3X_GRADIENT_LEFT  := Color(0.0,        0.376, 0.0,   1.0)
 const C_MOD3X_GRADIENT_RIGHT := Color(0.188,       0.753, 0.188, 1.0)
 const C_LABEL_LETTER         := Color(1.0, 1.0, 1.0, 1.0)
-const C_LABEL_POINT          := Color(0.251, 0.251, 0.251, 1.0)
+const C_LABEL_POINT          := Color(1.0, 1.0, 1.0, 1.0)
 const C_SELECTION_BORDER     := Color(1.0, 1.0, 0.0, 1.0)
-const C_MOD_TEXT_2X          := Color(0.0, 0.0, 0.5019, 1.0)
-const C_MOD_TEXT_3X          := Color(0.0, 0.376, 0.0, 1.0)
 const C_BAG_COUNT            := Color(0.251, 0.251, 0.251, 1.0)
 
 var item_index: int    = 0
@@ -81,27 +79,15 @@ func _draw() -> void:
 	if is_selected:
 		draw_rect(tile_rect.grow(2.0), C_SELECTION_BORDER, false, 2.0)
 
-	# Draw modifier text below tile (×2 or ×3)
+	# Draw "N in bag" below the tile
 	if font:
-		var mod_text := "2x" if modifier == GameData.MOD_2X else "3x"
-		var mod_color := C_MOD_TEXT_2X if modifier == GameData.MOD_2X else C_MOD_TEXT_3X
-		var font_size_mod := 16
-		var mod_size := font.get_string_size(mod_text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size_mod)
-		var mod_pos := Vector2(
-			body_x + (BODY_SIZE.x - mod_size.x) * 0.5,
-			tile_rect.position.y + BODY_SIZE.y + 2.0
-		)
-		draw_string(font, mod_pos, mod_text, HORIZONTAL_ALIGNMENT_LEFT, -1,
-				font_size_mod, mod_color)
-
-		# Draw bag count below modifier (small gray text)
 		var bag_count: int = GameData.LETTER_DISTRIBUTION.get(letter, 0)
 		var bag_text := "%d in bag" % bag_count
-		var font_size_bag := 9
+		var font_size_bag := 12
 		var bag_size := font.get_string_size(bag_text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size_bag)
 		var bag_pos := Vector2(
 			body_x + (BODY_SIZE.x - bag_size.x) * 0.5,
-			tile_rect.position.y + BODY_SIZE.y + 18.0
+			tile_rect.position.y + BODY_SIZE.y + 16.0
 		)
 		draw_string(font, bag_pos, bag_text, HORIZONTAL_ALIGNMENT_LEFT, -1,
 				font_size_bag, C_BAG_COUNT)
