@@ -13,6 +13,7 @@ const DiagonalClusterStrategy = preload("res://scripts/sim/strategies/diagonal_c
 const HybridWordDiagonalStrategy = preload("res://scripts/sim/strategies/hybrid_word_diagonal_strategy.gd")
 const CornerSpiralStrategy = preload("res://scripts/sim/strategies/corner_spiral_strategy.gd")
 const LongestWordStrategy = preload("res://scripts/sim/strategies/longest_word_strategy.gd")
+const DiscardWordSearchStrategy = preload("res://scripts/sim/strategies/discard_word_search.gd")
 
 func _initialize() -> void:
 	var args = _parse_args()
@@ -100,6 +101,8 @@ func _build_strategies(strategies_str: String) -> Array:
 			strategies.append(CornerSpiralStrategy.new())
 		elif name == "longest_word":
 			strategies.append(LongestWordStrategy.new())
+		elif name == "discard_word_search":
+			strategies.append(DiscardWordSearchStrategy.new())
 		else:
 			print("WARNING: Unknown strategy '%s'" % name)
 

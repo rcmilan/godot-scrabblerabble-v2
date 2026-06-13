@@ -416,3 +416,36 @@ func test_upgrade_offers_distinct_unowned_deterministic() -> bool:
 			return false
 
 	return true
+
+# Test discard excludes same letter on replacement draw
+func test_discard_excludes_same_letter() -> bool:
+	var core = GameCore.new(123)
+	var before: String = core.rack[0]["letter"]
+	if not core.discard_tile(before):
+		push_error("test_discard_excludes: discard failed"); return false
+	# the replacement at the same slot must not be the discarded letter
+	if core.rack[0]["letter"] == before:
+		push_error("test_discard_excludes: redrew the same letter"); return false
+	return true
+
+# Test discard budget resets each round
+func test_discard_budget_resets_each_round() -> bool:
+	var core = GameCore.new(7)
+	core.discards_left = 0
+	# force a round advance
+	core.round_score = core.target_score
+	core.end_turn([])
+	if core.discards_left != GameCore.DISCARDS_PER_ROUND:
+		push_error("test_discard_reset: expected %d, got %d" % [GameCore.DISCARDS_PER_ROUND, core.discards_left]); return false
+	return true
+
+# Test discard is deterministic under seed
+func test_discard_deterministic_under_seed() -> bool:
+	var a = GameCore.new(999)
+	var b = GameCore.new(999)
+	var la: String = a.rack[0]["letter"]
+	a.discard_tile(la)
+	b.discard_tile(b.rack[0]["letter"])
+	if a.rack[0]["letter"] != b.rack[0]["letter"]:
+		push_error("test_discard_determinism: same seed diverged"); return false
+	return true

@@ -23,6 +23,12 @@ func _run_game(strategy, seed: int, modifier_build: Dictionary = {}) -> Dictiona
 	var max_turns = 10000
 
 	while not core.is_game_over and turn_log.size() < max_turns:
+		var discards = strategy.pick_discards(core)
+		for d in discards:
+			if core.discards_left <= 0:
+				break
+			core.discard_tile(d)
+
 		var moves = strategy.pick_moves(core)
 
 		# Caller removes tile from rack; place_pending_tile writes board only.
