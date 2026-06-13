@@ -14,6 +14,7 @@ const BOARD_SIZE:             int = 8
 const RACK_SIZE:              int = 7
 const UPGRADE_EVERY_N_ROUNDS: int = 3
 const UPGRADE_OFFER_COUNT: int = 3
+const DISCARDS_PER_ROUND:     int = 3
 
 const MOD_NONE: String = ""
 const MOD_2X:   String = "2x"
@@ -77,6 +78,7 @@ var round_score:    int   = 0
 var target_score:   int   = INITIAL_TARGET_SCORE
 var turns_left:     int   = TURNS_PER_ROUND
 var tiles_per_turn: int   = INITIAL_TILES_PER_TURN
+var discards_left:  int   = DISCARDS_PER_ROUND
 var is_game_over:   bool  = false
 
 # Modifier build state.
@@ -117,6 +119,15 @@ func _draw_letter_raw() -> String:
 			bag.append(letter)
 	return bag[rng.randi() % bag.size()]
 
+func _draw_letter_raw_excluding(excluded: String) -> String:
+	var bag: Array[String] = []
+	for letter in LETTER_DISTRIBUTION.keys():
+		if letter == excluded:
+			continue
+		for _i in LETTER_DISTRIBUTION[letter]:
+			bag.append(letter)
+	return bag[rng.randi() % bag.size()]
+
 # Kept public for TC2 backward compatibility.
 func draw_letter() -> String:
 	return _draw_letter_raw()
@@ -133,6 +144,9 @@ func rack_letters() -> Array:
 func refill_rack() -> void:
 	while rack.size() < RACK_SIZE:
 		rack.append(draw_tile())
+	_apply_rack_modifiers()
+
+func _apply_rack_modifiers() -> void:
 	for i in range(rack.size()):
 		if letter_modifiers.has(rack[i]["letter"]):
 			rack[i]["modifier"] = letter_modifiers[rack[i]["letter"]]
@@ -196,6 +210,19 @@ func place_pending(letter: String, pos: Vector2i) -> bool:
 				return true
 			rack.append(tile_dict)
 			return false
+	return false
+
+func discard_tile(letter: String) -> bool:
+	if discards_left <= 0:
+		return false
+	for i in rack.size():
+		if rack[i]["letter"] == letter:
+			rack.remove_at(i)
+			var new_letter := _draw_letter_raw_excluding(letter)
+			rack.insert(i, {"letter": new_letter, "modifier": MOD_NONE})
+			_apply_rack_modifiers()
+			discards_left -= 1
+			return true
 	return false
 
 func end_turn(pending_positions: Array) -> int:
@@ -363,6 +390,7 @@ func _advance_round() -> void:
 	round_score = 0
 	turns_left = TURNS_PER_ROUND
 	tiles_per_turn += 1
+	discards_left = DISCARDS_PER_ROUND
 	if current_round == 2:
 		_t_prev = _t_curr
 		_t_curr = 30.0
