@@ -1,251 +1,422 @@
-# Upgrade Wizard — Fixes
+# Upgrade Wizard — Fix Tasks (visual rebuild)
 
-The upgrade wizard shipped (commits `a3c9ba8`…`164845e`) but the live
-result is broken in four distinct ways. This doc diagnoses each and
-gives exact fixes. Read `docs/upgrade_wizard_design.md` for intent.
+> **Supersedes the earlier version of this file.** The wizard shipped
+> (commits `a3c9ba8`…`164845e`) but renders broken: elements float over
+> the board with no background, arrow keys look dead, the banner title
+> flies off-screen, and `×2/×3` shows missing-glyph boxes.
+>
+> These tasks migrate the shipped code to the corrected spec in
+> `docs/upgrade_wizard_design.md` ("The wizard dialog" section). Do them
+> **in order**; each is small and self-contained. Implementations target
+> a less-sophisticated agent (haiku): every change below is given as
+> exact file content or exact old→new code. Do not improvise beyond it.
 
-All work is in three files:
-- `scripts/upgrade_item.gd` (the offer card)
-- `scripts/upgrade_dialog.gd` (the dialog controller)
-- `scenes/upgrade_dialog.tscn` (layout)
+**Files touched:** `scenes/upgrade_dialog.tscn`,
+`scripts/upgrade_dialog.gd`, `scripts/upgrade_item.gd`,
+`scripts/main.gd`.
 
-Do the fixes in order; each is independent and committable.
-Verification command (must still pass / exit 0):
+**Cannot run Godot in this environment** — there is no `godot` binary.
+After each task, just confirm the file matches the snippet exactly and
+that GDScript has no obvious syntax error. The human will run the game.
 
-```
-godot --headless --path . --script res://scripts/sim/tests/run_tests.gd
-timeout 180 godot --headless --path . -- --autoplay=word_search; echo "exit: $?"
-```
-
-None of these fixes touch offer generation or the sim, so TSM10/TSM11
-and the autoplay loop must be unaffected — if they break, you changed
-too much.
-
----
-
-## Symptoms (from the live screenshot)
-
-1. **Cards laid out 2×2, not in a single row** — O and P on the top
-   row, I orphaned below.
-2. **Arrow keys appear to do nothing** — the player cannot navigate
-   between cards; only mouse-clicking a card changes the selection.
-3. **The left banner is a giant black void**, and the rotated
-   "ScrabbleRabble 95" title escapes the dialog entirely — it renders
-   over the board at the top-left of the screen.
-4. **The "×2 / ×3" labels render as garbage** (the `×` glyph is
-   missing from the w95fa font).
+**Do NOT touch** offer generation (`_generate_upgrade_offers`), the
+auto-pick heuristic, or the sim (`game_core.gd`, tests). None of these
+tasks change game logic, so TSM10/TSM11 and autoplay must be unaffected.
 
 ---
 
-## Fix 1 — Cards in a single row (the 2×2 bug)
+## Task 1 — Rebuild the dialog as a container-based modal
 
-**Root cause:** `upgrade_dialog.gd::populate` line ~35 overrides the
-scene's `columns = 3` with leftover logic from the old single-offer
-dialog:
+**Why:** a bare `Panel` is not a container, so it never grew to wrap its
+children — content overflowed the painted gray and rendered over the
+board. Switching to `PanelContainer` (paints the frame **and** sizes to
+content) inside a `CenterContainer` (auto-centers) fixes the background
+and the centering at once. The scene's root becomes the full-screen
+input blocker, so `main.gd` stops building one.
 
-```gdscript
-_grid.columns = max(1, int(ceil(sqrt(float(count)))))   # ceil(sqrt(3)) = 2
+### 1a. Replace `scenes/upgrade_dialog.tscn` with exactly this
+
+```
+[gd_scene load_steps=2 format=3 uid="uid://upgrade_dialog01"]
+
+[ext_resource type="Script" path="res://scripts/upgrade_dialog.gd" id="1"]
+
+[node name="ModalRoot" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+script = ExtResource("1")
+
+[node name="CenterContainer" type="CenterContainer" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Window" type="PanelContainer" parent="CenterContainer"]
+layout_mode = 2
+custom_minimum_size = Vector2(420, 360)
+theme_type_variation = &"WindowFrame"
+
+[node name="RootVBox" type="VBoxContainer" parent="CenterContainer/Window"]
+layout_mode = 2
+
+[node name="TitleBar" type="Panel" parent="CenterContainer/Window/RootVBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 22)
+theme_type_variation = &"TitleBar"
+
+[node name="TitleContent" type="HBoxContainer" parent="CenterContainer/Window/RootVBox/TitleBar"]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+offset_left = 4.0
+offset_right = -2.0
+
+[node name="TitleLabel" type="Label" parent="CenterContainer/Window/RootVBox/TitleBar/TitleContent"]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Upgrade Wizard"
+theme_override_colors/font_color = Color(1, 1, 1, 1)
+
+[node name="WinButtons" type="HBoxContainer" parent="CenterContainer/Window/RootVBox/TitleBar/TitleContent"]
+layout_mode = 2
+size_flags_horizontal = 8
+separation = 2
+
+[node name="CloseBtn" type="Button" parent="CenterContainer/Window/RootVBox/TitleBar/TitleContent/WinButtons"]
+layout_mode = 2
+custom_minimum_size = Vector2(16, 14)
+focus_mode = 0
+text = "X"
+
+[node name="BodyArea" type="HBoxContainer" parent="CenterContainer/Window/RootVBox"]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="Banner" type="Control" parent="CenterContainer/Window/RootVBox/BodyArea"]
+layout_mode = 2
+custom_minimum_size = Vector2(96, 0)
+size_flags_vertical = 3
+mouse_filter = 2
+
+[node name="BodyMargin" type="MarginContainer" parent="CenterContainer/Window/RootVBox/BodyArea"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_top = 10
+theme_override_constants/margin_right = 10
+theme_override_constants/margin_bottom = 10
+
+[node name="ContentVBox" type="VBoxContainer" parent="CenterContainer/Window/RootVBox/BodyArea/BodyMargin"]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 8
+
+[node name="HeaderLabel" type="Label" parent="CenterContainer/Window/RootVBox/BodyArea/BodyMargin/ContentVBox"]
+layout_mode = 2
+text = "Choose an upgrade to install:"
+theme_override_colors/font_color = Color(0, 0, 0.5019, 1)
+
+[node name="Grid" type="GridContainer" parent="CenterContainer/Window/RootVBox/BodyArea/BodyMargin/ContentVBox"]
+layout_mode = 2
+size_flags_horizontal = 4
+custom_minimum_size = Vector2(188, 204)
+columns = 2
+theme_override_constants/h_separation = 12
+theme_override_constants/v_separation = 12
+
+[node name="Caption" type="Label" parent="CenterContainer/Window/RootVBox/BodyArea/BodyMargin/ContentVBox"]
+layout_mode = 2
+custom_minimum_size = Vector2(0, 32)
+text = "Every A tile scores double points for the rest of the run."
+autowrap_mode = 3
+
+[node name="ButtonRow" type="HBoxContainer" parent="CenterContainer/Window/RootVBox/BodyArea/BodyMargin/ContentVBox"]
+layout_mode = 2
+alignment = 2
+theme_override_constants/separation = 8
+
+[node name="BackButton" type="Button" parent="CenterContainer/Window/RootVBox/BodyArea/BodyMargin/ContentVBox/ButtonRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(88, 24)
+disabled = true
+focus_mode = 0
+text = "< Back"
+
+[node name="NextButton" type="Button" parent="CenterContainer/Window/RootVBox/BodyArea/BodyMargin/ContentVBox/ButtonRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(88, 24)
+text = "Next >"
+
+[node name="CancelButton" type="Button" parent="CenterContainer/Window/RootVBox/BodyArea/BodyMargin/ContentVBox/ButtonRow"]
+layout_mode = 2
+custom_minimum_size = Vector2(88, 24)
+text = "Cancel"
 ```
 
-`ceil(sqrt(3))` is **2**, so three cards wrap to a 2×2 grid.
+### 1b. Update the top of `scripts/upgrade_dialog.gd`
 
-**Fix:** put every offer in one row. Replace that line with:
+The script now lives on a `Control` root (was `Panel`), and the node
+paths are one level deeper. Replace the class line, `extends`, and the
+seven `@onready` vars with:
 
 ```gdscript
-_grid.columns = count
+class_name UpgradeDialog
+extends Control
+
+@onready var _grid:       GridContainer = $CenterContainer/Window/RootVBox/BodyArea/BodyMargin/ContentVBox/Grid
+@onready var _caption:    Label         = $CenterContainer/Window/RootVBox/BodyArea/BodyMargin/ContentVBox/Caption
+@onready var _banner:     Control       = $CenterContainer/Window/RootVBox/BodyArea/Banner
+@onready var _back_btn:   Button        = $CenterContainer/Window/RootVBox/BodyArea/BodyMargin/ContentVBox/ButtonRow/BackButton
+@onready var _next_btn:   Button        = $CenterContainer/Window/RootVBox/BodyArea/BodyMargin/ContentVBox/ButtonRow/NextButton
+@onready var _cancel_btn: Button        = $CenterContainer/Window/RootVBox/BodyArea/BodyMargin/ContentVBox/ButtonRow/CancelButton
+@onready var _close_btn:  Button        = $CenterContainer/Window/RootVBox/TitleBar/TitleContent/WinButtons/CloseBtn
 ```
 
-(The scene's `Grid` node already declares `columns = 3`; this just
-stops the override from shrinking it.)
+Leave the rest of `upgrade_dialog.gd` unchanged in this task (the
+`_ready` body, `populate`, signal handlers all still work).
+
+### 1c. Simplify `main.gd::_show_upgrade_dialog`
+
+Replace lines 301–316 (the `var dialog … dialog.position = …` block,
+i.e. the typed-`Panel` line, the blocker creation, and the centering
+math) with:
+
+```gdscript
+	var dialog: UpgradeDialog = UPGRADE_DIALOG_SCENE.instantiate()
+	var layer := CanvasLayer.new()
+	layer.layer = 50
+	add_child(layer)
+	layer.add_child(dialog)
+```
+
+Keep everything after it (`dialog.populate(offers)`,
+`dialog.focus_first()`, the `upgrade_picked`/`skipped` connections, the
+autoplay call) exactly as-is.
+
+**Result after Task 1:** the dialog is centered, the gray frame covers
+every element (header, cards, caption, buttons), and clicks outside it
+are blocked. Cards may still look slightly off until Tasks 2–6.
 
 ---
 
-## Fix 2 — Arrow-key navigation (the critical one)
+## Task 2 — Grid: exactly 2 columns
 
-**Root cause — a regression, not a missing feature.** In the deleted
-`letter_item.gd`, the yellow border was drawn on `has_focus()`, so
-moving keyboard focus *was* the visible selection. The new
-`upgrade_item.gd` decoupled them: the border is now drawn on
-`is_selected` (line ~81), and `is_selected` is only updated by a mouse
-click or a confirm — **never by focus changes**.
+**Why:** `populate` overrides the scene's `columns = 2` with leftover
+`ceil(sqrt(count))` logic. The wizard is a fixed 2-column grid.
 
-So when the player presses Right:
-- `upgrade_item._gui_input` fires `nav_right`,
-- `upgrade_dialog._on_item_nav_right` calls `grab_focus()` on the
-  neighbor,
-- focus moves correctly… **but nothing redraws as selected and the
-  caption never updates**, because `is_selected` didn't change.
-
-From the player's seat: "arrow keys are dead." The design doc actually
-specified the fix ("focus_entered → emit selected") but it wasn't
-wired.
-
-**Fix — make selection follow focus.** In `upgrade_item.gd::_ready`,
-change the focus signal hookup from a bare redraw to emitting
-`selected`:
+In `scripts/upgrade_dialog.gd::populate`, replace:
 
 ```gdscript
-# was: focus_entered.connect(queue_redraw)
-focus_entered.connect(emit_selected)
-focus_exited.connect(queue_redraw)
+	_grid.columns = max(1, int(ceil(sqrt(float(count)))))
 ```
 
-`emit_selected()` already exists and emits `selected(item_index)`,
-which `upgrade_dialog._on_item_selected` handles — it updates
-`is_selected` on every card, redraws them, and refreshes the caption.
-Now arrow navigation is fully visible: focus moves → that card becomes
-the selected card → caption updates.
-
-**Also fix the focus trap.** `populate` wires
-`nav_up`/`nav_down` to `_next_btn.grab_focus()`. Once focus lands on
-the Next button there is no keyboard path back to the cards, and the
-disabled Back button plus an unset `focus_neighbor` chain leave the
-player stranded. For a single row of three cards this up/down jump adds
-nothing. Remove it — delete these two lines in `populate`:
+with:
 
 ```gdscript
-item.nav_up.connect(func(): _next_btn.grab_focus())
-item.nav_down.connect(func(): _next_btn.grab_focus())
+	_grid.columns = 2
 ```
 
-Keyboard model after this fix: **Left/Right** moves between cards
-(selection follows), **Enter** confirms the selected card
-(`ui_accept` on a card already emits `confirmed`, which is identical to
-pressing Next). Next/Cancel remain reachable by mouse or Tab.
-
-> If, after Fix 2, arrows still don't move focus at all (i.e. the
-> items aren't receiving key events in `_gui_input`), the fallback is
-> to handle navigation in the dialog instead: give `UpgradeDialog` a
-> `_gui_input`/`_unhandled_input` that reads `ui_left`/`ui_right` and
-> calls `_item_nodes[new_index].grab_focus()` directly. But the
-> item-level `_gui_input` matches the old working letter picker, so
-> the selection-follows-focus fix above is expected to be sufficient.
+(Leave everything else in `populate` alone.)
 
 ---
 
-## Fix 3 — The banner (black void + escaped title)
+## Task 3 — Banner: readable gradient + in-code title
 
-Two separate defects in the same node.
+**Why:** the gradient lerps navy→pure-black (a dead void), and there is
+no banner title anymore (the old rotated `Label` node was removed in
+Task 1's scene). Draw both in the banner's draw callback.
 
-### 3a. The rotated title escapes the dialog
-
-**Root cause:** `BannerLabel` (scene lines ~66-80) combines
-`anchors_preset = 15` (full-rect) with `offset_left = 48`,
-`offset_right = -48`, `offset_top = -48`, `offset_bottom = 48` on a
-96px-wide banner. That resolves to a **0-px-wide** rect starting
-*above* the banner (`y = -48`), then `rotation = -1.5708` spins it
-about the top-left pivot — flinging the text out of the dialog to the
-top-left of the screen (exactly what the screenshot shows).
-
-**Fix (recommended): delete the `BannerLabel` node and draw the text
-in code**, where the transform is controllable. In
-`upgrade_dialog.gd::_on_banner_draw`, after the gradient loop, add:
+Replace the whole `_on_banner_draw` function in
+`scripts/upgrade_dialog.gd` with:
 
 ```gdscript
-var font := get_theme_default_font()
-if font:
-    var text := "ScrabbleRabble 95"
-    var font_size := 16
-    var text_w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
-    # Rotate -90° about the banner centre, then draw the string centred
-    # on the new axis so it reads bottom-to-top.
-    var centre := banner_rect.size * 0.5
-    _banner.draw_set_transform(centre, -PI / 2.0, Vector2.ONE)
-    _banner.draw_string(font, Vector2(-text_w * 0.5, 0), text,
-            HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color(1, 1, 1, 1))
-    _banner.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)  # reset
+func _on_banner_draw() -> void:
+	var banner_rect := _banner.get_rect()
+	var steps := int(banner_rect.size.y)
+	var navy := Color(0, 0, 0.5019, 1.0)
+	var deep := Color(0, 0, 0.20, 1.0)
+	for i in steps:
+		var t := float(i) / float(max(1, steps - 1))
+		_banner.draw_rect(Rect2(0, i, banner_rect.size.x, 1), navy.lerp(deep, t))
+
+	var font := _banner.get_theme_default_font()
+	if font:
+		var text := "ScrabbleRabble 95"
+		var font_size := 16
+		var text_w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+		var centre := banner_rect.size * 0.5
+		_banner.draw_set_transform(centre, -PI / 2.0, Vector2.ONE)
+		_banner.draw_string(font, Vector2(-text_w * 0.5, 0), text,
+				HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color(1, 1, 1, 1))
+		_banner.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 ```
-
-(Remove the `BannerLabel` node and its properties from
-`upgrade_dialog.tscn` lines ~66-80.)
-
-> Acceptable simpler fallback if the rotated draw is fiddly: drop the
-> banner text entirely and ship a clean gradient-only banner. A blank
-> banner reads as intentional; escaped text does not.
-
-### 3b. The gradient is almost entirely black
-
-**Root cause:** `_on_banner_draw` lerps navy → `Color.BLACK` across
-~238 rows, so all but the top sliver is black — a dead void rather
-than a banner.
-
-**Fix:** lerp navy → a darker navy, not pure black, so it still reads
-as the classic InstallShield blue panel:
-
-```gdscript
-var navy := Color(0, 0, 0.5019, 1.0)
-var deep := Color(0, 0, 0.20, 1.0)   # was Color.BLACK
-...
-var color := navy.lerp(deep, t)
-```
-
-### 3c. Safety: clip the banner to the dialog
-
-Set `clip_contents = true` on the root `UpgradeDialog` Panel in the
-scene so nothing a banner draws can ever bleed past the window frame
-again.
 
 ---
 
-## Fix 4 — "×2 / ×3" renders as garbage
+## Task 4 — ASCII `2x` / `3x` (the missing-glyph fix)
 
-**Root cause:** the multiplication sign `×` (U+00D7) is not present in
-`fonts/w95fa.otf`, so it draws as a missing-glyph box/dot (visible
-under each tile in the screenshot).
+**Why:** `fonts/w95fa.otf` has no `×` (U+00D7); it renders as a box.
 
-**Fix:** use ASCII in `upgrade_item.gd::_draw` (line ~86):
+In `scripts/upgrade_item.gd::_draw`, replace:
 
 ```gdscript
-# was: var mod_text := "×2" if modifier == GameData.MOD_2X else "×3"
-var mod_text := "2x" if modifier == GameData.MOD_2X else "3x"
+		var mod_text := "×2" if modifier == GameData.MOD_2X else "×3"
 ```
 
-`2x` / `3x` also matches the text historically drawn on modifier tile
-bodies, so it reads consistently. Leave the caption wording
-("double"/"triple") alone — those are plain ASCII words and render
-fine.
+with:
+
+```gdscript
+		var mod_text := "2x" if modifier == GameData.MOD_2X else "3x"
+```
 
 ---
 
-## Fix 5 — Scene hygiene (do while you're in the file)
+## Task 5 — Selection follows focus (the "arrow keys are dead" fix)
 
-`scenes/upgrade_dialog.tscn` line 7 carries a leftover
-`size = Vector2(240, 160)` from the old 240×160 dialog, contradicting
-`custom_minimum_size = Vector2(430, 260)`. It doesn't break layout
-(the container minimums win) but it's misleading. Set it to
-`Vector2(430, 260)` or delete the `size` line.
+**Why:** the yellow border + caption are driven by `is_selected`, which
+only changed on a mouse click. Arrow keys moved focus but nothing
+redrew, so navigation looked dead. Make focus drive selection.
+
+In `scripts/upgrade_item.gd::_ready`, replace:
+
+```gdscript
+	focus_entered.connect(queue_redraw)
+```
+
+with:
+
+```gdscript
+	focus_entered.connect(emit_selected)
+```
+
+(`emit_selected()` already exists and emits `selected(item_index)`,
+which the dialog handles by updating every card's `is_selected`,
+redrawing, and refreshing the caption. Leave `focus_exited` as-is.)
 
 ---
 
-## Verification checklist (with a window)
+## Task 6 — 2D arrow navigation + button bridge
 
-Reach round 4 (or temporarily set `UPGRADE_EVERY_N_ROUNDS = 1` in
-`run_state.gd` for testing — **revert before committing**) and confirm:
+**Why:** with a 2-column grid, arrows must move in 2D and reach the
+buttons. Replace the old 1-D nav wiring and handlers.
 
-1. Three cards sit in **one horizontal row**.
-2. **Left/Right arrows move the yellow selection** between cards and
-   the caption updates with each move. Enter confirms the highlighted
-   card. Double-click and single-click+Enter also confirm.
-3. The banner is a **blue gradient panel** with the product name
-   reading bottom-to-top **inside** it — nothing draws over the board.
-4. Each card shows **"2x" / "3x"** cleanly (no missing-glyph box).
-5. Board and rack stay inert behind the modal; Cancel and the title-bar
-   X both skip.
+### 6a. In `scripts/upgrade_dialog.gd::populate`, replace the nav-wiring loop
 
-Then the headless checks:
+Replace:
 
-6. `run_tests.gd` — all TC/TS/TSM pass (TSM10, TSM11 included).
-7. `--autoplay=word_search` exits 0 and the upgrade-round log still
-   shows `[UpgradeWizard] autoplay pick — …` → `[RunState] letter
-   modifier set — …` (autoplay emits `upgrade_picked` directly, so the
-   UI fixes must not disturb it).
+```gdscript
+	# Wire navigation
+	for i in _item_nodes.size():
+		var item := _item_nodes[i]
+		var captured_i := i
+		item.nav_left.connect(func(): _on_item_nav_left(captured_i))
+		item.nav_right.connect(func(): _on_item_nav_right(captured_i))
+		item.nav_up.connect(func(): _next_btn.grab_focus())
+		item.nav_down.connect(func(): _next_btn.grab_focus())
+```
 
-## Suggested commits
+with:
 
-- `fix: upgrade cards in a single row`
-- `fix: upgrade wizard arrow-key navigation (selection follows focus)`
-- `fix: upgrade banner gradient + in-code rotated title`
-- `fix: use ASCII 2x/3x on upgrade cards (w95fa lacks ×)`
+```gdscript
+	# Wire navigation (2-column grid)
+	for i in _item_nodes.size():
+		var captured_i := i
+		_item_nodes[i].nav_left.connect(func(): _nav_horizontal(captured_i, -1))
+		_item_nodes[i].nav_right.connect(func(): _nav_horizontal(captured_i, 1))
+		_item_nodes[i].nav_up.connect(func(): _nav_vertical(captured_i, -1))
+		_item_nodes[i].nav_down.connect(func(): _nav_vertical(captured_i, 1))
+```
 
-(Or one combined `fix: upgrade wizard UX — layout, navigation, banner,
-glyphs` — match the cadence of recent commits.)
+### 6b. Replace the two old nav handlers
+
+Replace:
+
+```gdscript
+func _on_item_nav_left(i: int) -> void:
+	if i > 0:
+		_item_nodes[i - 1].grab_focus()
+
+func _on_item_nav_right(i: int) -> void:
+	if i < _item_nodes.size() - 1:
+		_item_nodes[i + 1].grab_focus()
+```
+
+with:
+
+```gdscript
+const GRID_COLUMNS := 2
+
+func _nav_horizontal(from_index: int, delta: int) -> void:
+	var new_col := (from_index % GRID_COLUMNS) + delta
+	if new_col < 0 or new_col >= GRID_COLUMNS:
+		return
+	var target := from_index + delta
+	if target >= 0 and target < _item_nodes.size():
+		_item_nodes[target].grab_focus()
+
+func _nav_vertical(from_index: int, delta_rows: int) -> void:
+	var target := from_index + delta_rows * GRID_COLUMNS
+	if target >= 0 and target < _item_nodes.size():
+		_item_nodes[target].grab_focus()
+	elif delta_rows > 0:
+		_next_btn.grab_focus()
+```
+
+### 6c. Let Up from the Next button return to the grid
+
+In `scripts/upgrade_dialog.gd::_ready`, add one connection (after the
+existing `_next_btn.pressed.connect(...)` line):
+
+```gdscript
+	_next_btn.gui_input.connect(_on_next_btn_gui_input)
+```
+
+and add this handler anywhere in the file:
+
+```gdscript
+func _on_next_btn_gui_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_up"):
+		if _selected_index >= 0 and _selected_index < _item_nodes.size():
+			_item_nodes[_selected_index].grab_focus()
+		get_viewport().set_input_as_handled()
+```
+
+---
+
+## Final manual check (human, with a window)
+
+Reach an upgrade round (round 4, or temporarily set
+`UPGRADE_EVERY_N_ROUNDS = 1` in `run_state.gd` — **revert before
+committing**) and confirm:
+
+1. The dialog is centered; the **gray frame covers every element** —
+   no board visible behind the header, caption, or buttons.
+2. Cards sit in a **2-column grid** (3 offers → two on top, one
+   bottom-left). With 1/2/4 offers the caption and buttons stay put.
+3. **Arrow keys move the yellow selection** in 2D and the caption
+   updates live. Down from the bottom row reaches **Next**; Up from
+   Next returns to the grid. Enter confirms; double-click confirms.
+4. The banner is a **navy gradient** with "ScrabbleRabble 95" reading
+   bottom-to-top **inside** it — nothing over the board.
+5. Cards show **"2x" / "3x"** cleanly (no missing-glyph box).
+6. Board/rack inert behind the modal; Cancel and the title-bar X skip.
+
+## Suggested commits (one per task, or group as you prefer)
+
+- `fix: rebuild upgrade wizard as container-based modal`
+- `fix: upgrade grid fixed to 2 columns`
+- `fix: upgrade banner gradient + in-code title`
+- `fix: ASCII 2x/3x on upgrade cards (w95fa lacks ×)`
+- `fix: upgrade selection follows focus`
+- `fix: 2D upgrade navigation + button bridge`
