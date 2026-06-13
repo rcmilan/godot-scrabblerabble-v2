@@ -298,22 +298,11 @@ func _show_upgrade_dialog() -> void:
 	RunState.is_upgrading = true
 	print("[UpgradeDialog] upgrade offered — round %d" % RunState.current_round)
 
-	var dialog: Panel = UPGRADE_DIALOG_SCENE.instantiate()
+	var dialog: UpgradeDialog = UPGRADE_DIALOG_SCENE.instantiate()
 	var layer := CanvasLayer.new()
 	layer.layer = 50
 	add_child(layer)
-
-	var blocker := Control.new()
-	blocker.name = "ModalBlocker"
-	blocker.set_anchors_preset(Control.PRESET_FULL_RECT)
-	blocker.mouse_filter = Control.MOUSE_FILTER_STOP
-	layer.add_child(blocker)
-
 	layer.add_child(dialog)
-
-	# Center dialog; use custom_minimum_size since size is (0,0) before first layout pass.
-	var vp_size := get_viewport().get_visible_rect().size
-	dialog.position = (vp_size - dialog.custom_minimum_size) / 2.0
 
 	dialog.populate(offers)
 	dialog.focus_first()

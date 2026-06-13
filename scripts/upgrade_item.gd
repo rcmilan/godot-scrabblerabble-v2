@@ -34,7 +34,7 @@ func _ready() -> void:
 	focus_mode          = FOCUS_ALL
 	custom_minimum_size = Vector2(88.0, 96.0)
 	mouse_filter        = MOUSE_FILTER_STOP
-	focus_entered.connect(queue_redraw)
+	focus_entered.connect(emit_selected)
 	focus_exited.connect(queue_redraw)
 	add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	for child in get_children():
@@ -83,7 +83,7 @@ func _draw() -> void:
 
 	# Draw modifier text below tile (×2 or ×3)
 	if font:
-		var mod_text := "×2" if modifier == GameData.MOD_2X else "×3"
+		var mod_text := "2x" if modifier == GameData.MOD_2X else "3x"
 		var mod_color := C_MOD_TEXT_2X if modifier == GameData.MOD_2X else C_MOD_TEXT_3X
 		var font_size_mod := 16
 		var mod_size := font.get_string_size(mod_text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size_mod)
