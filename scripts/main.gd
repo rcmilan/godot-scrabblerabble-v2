@@ -51,6 +51,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	if RunState.is_game_over or RunState.is_transitioning or RunState.is_upgrading:
 		return
 
+	if event is InputEventKey and event.pressed and not event.echo \
+			and (event.keycode == KEY_DELETE or event.keycode == KEY_BACKSPACE):
+		_handle_delete()
+		get_viewport().set_input_as_handled()
+		return
+
 	var focused = get_viewport().gui_get_focus_owner()
 	var rack_idx := rack.tiles_in_hand.find(focused)
 
@@ -157,6 +163,22 @@ func discard_rack_tile(tile: Tile) -> void:
 	(result["old_tile"] as Tile).queue_free()
 	RunState.use_discard()
 	print("[Discard] rack discard — %s, %d left" % [tile.letter, RunState.discards_left])
+
+func _handle_delete() -> void:
+	var focused = get_viewport().gui_get_focus_owner()
+	var rack_idx := rack.tiles_in_hand.find(focused)
+	if rack_idx != -1:
+		discard_rack_tile(focused as Tile)
+		_focus_rack_index(rack_idx)   # focus the replacement in the same slot
+	elif focused is BoardCell:
+		var cell := focused as BoardCell
+		if cell.current_tile != null:
+			_return_pending_tile(cell.current_tile)
+
+func _return_pending_tile(tile: Tile) -> void:
+	print("[Discard] board tile returned — %s" % tile.letter)
+	on_tile_returned_to_rack(tile)
+	board.focus_cell(cursor)
 
 # ---------- End of turn ----------
 func _on_end_turn_pressed() -> void:
