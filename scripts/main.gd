@@ -61,16 +61,24 @@ func _on_cell_focused(cell: BoardCell) -> void:
 	_nav.set_board(cell.grid_pos)
 
 func _on_cell_move_requested(dir: Vector2i) -> void:
-	_nav.move(dir, rack.tiles_in_hand.size())
-	_apply_nav_focus()
+	_move_nav(dir)
 
 func _on_rack_move_requested(dir: Vector2i) -> void:
-	_nav.move(dir, rack.tiles_in_hand.size())
-	_apply_nav_focus()
+	_move_nav(dir)
 
 func _on_tile_focused(index: int) -> void:
 	if index >= 0:
 		_nav.set_rack(index)
+
+func _move_nav(dir: Vector2i) -> void:
+	var prev_region := _nav.region
+	_nav.move(dir, rack.tiles_in_hand.size())
+	if _nav.region != prev_region:
+		print("[Nav] region %s -> %s" % [_region_name(prev_region), _region_name(_nav.region)])
+	_apply_nav_focus()
+
+func _region_name(r: int) -> String:
+	return "RACK" if r == Navigation.Region.RACK else "BOARD"
 
 func _apply_nav_focus() -> void:
 	if _nav.region == Navigation.Region.BOARD:
@@ -91,7 +99,9 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if event.is_action_pressed("ui_left") or event.is_action_pressed("ui_right") \
 			or event.is_action_pressed("ui_up") or event.is_action_pressed("ui_down"):
-		board.focus_cell(cursor)
+		# Focus was lost (e.g. HBox steal on tile removal); re-anchor on the
+		# model's current region rather than forcing the board.
+		_apply_nav_focus()
 		get_viewport().set_input_as_handled()
 		return
 

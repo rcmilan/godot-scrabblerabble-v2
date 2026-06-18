@@ -88,3 +88,38 @@ func test_tn8_interior_moves() -> bool:
 	if nav.region != Navigation.Region.BOARD:
 		push_error("TN8: expected region BOARD"); return false
 	return true
+
+# TN9 - Left and up at the top-left corner clamp (mirror of TN1/TN2).
+func test_tn9_top_left_corner_clamps() -> bool:
+	var nav = Navigation.new()
+	nav.set_board(Vector2i(0, 0))
+	nav.move(Vector2i(-1, 0), 7)
+	nav.move(Vector2i(0, -1), 7)
+	if nav.board_pos != Vector2i(0, 0):
+		push_error("TN9: expected (0,0), got %s" % nav.board_pos); return false
+	if nav.region != Navigation.Region.BOARD:
+		push_error("TN9: expected region BOARD"); return false
+	return true
+
+# TN10 - Down on the bottom row with an empty rack stays on the board.
+func test_tn10_empty_rack_no_cross() -> bool:
+	var nav = Navigation.new()
+	nav.set_board(Vector2i(3, 7))
+	nav.move(Vector2i(0, 1), 0)
+	if nav.region != Navigation.Region.BOARD:
+		push_error("TN10: expected region BOARD (empty rack)"); return false
+	if nav.board_pos != Vector2i(3, 7):
+		push_error("TN10: expected anchor (3,7), got %s" % nav.board_pos); return false
+	return true
+
+# TN11 - Mouse focus (set_rack) then up returns to the board anchor.
+func test_tn11_mouse_rack_then_up() -> bool:
+	var nav = Navigation.new()
+	nav.set_board(Vector2i(5, 2))
+	nav.set_rack(3)                    # simulate a mouse click on a rack tile
+	nav.move(Vector2i(0, -1), 7)
+	if nav.region != Navigation.Region.BOARD:
+		push_error("TN11: expected region BOARD"); return false
+	if nav.board_pos != Vector2i(5, 2):
+		push_error("TN11: expected anchor (5,2), got %s" % nav.board_pos); return false
+	return true
