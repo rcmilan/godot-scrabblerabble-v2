@@ -6,6 +6,7 @@ const BOARD_SIZE: int = 8
 const CELL_SCENE: PackedScene = preload("res://scenes/board_cell.tscn")
 
 signal cell_focused(cell: BoardCell)
+signal cell_move_requested(dir: Vector2i)
 
 var cells: Array = []  # 2D array indexed [x][y]
 
@@ -23,6 +24,7 @@ func _ready() -> void:
 			cell.custom_minimum_size = Vector2(56, 56)
 			add_child(cell)
 			cell.focus_entered.connect(func(): cell_focused.emit(cell))
+			cell.move_requested.connect(func(dir): cell_move_requested.emit(dir))
 			cells[x][y] = cell
 
 func get_cell(pos: Vector2i) -> BoardCell:

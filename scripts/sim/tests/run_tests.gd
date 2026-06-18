@@ -9,6 +9,7 @@ func _initialize() -> void:
 	_run_test_file("res://scripts/sim/tests/test_game_core.gd")
 	_run_test_file("res://scripts/sim/tests/test_strategies.gd")
 	_run_test_file("res://scripts/sim/tests/test_simulator.gd")
+	_run_test_file("res://scripts/sim/tests/test_navigation.gd")
 
 	# Print summary.
 	print("")

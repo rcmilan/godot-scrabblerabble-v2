@@ -3,6 +3,7 @@ class_name BoardCell
 extends Panel
 
 signal cell_clicked(cell: BoardCell)
+signal move_requested(dir: Vector2i)
 
 @onready var label: Label = $Label
 
@@ -40,6 +41,14 @@ func _on_gui_input(event: InputEvent) -> void:
 			and event.button_index == MOUSE_BUTTON_LEFT:
 		grab_focus()
 		cell_clicked.emit(self)
+	if event.is_action_pressed("ui_left"):
+		move_requested.emit(Vector2i(-1, 0)); accept_event()
+	elif event.is_action_pressed("ui_right"):
+		move_requested.emit(Vector2i(1, 0)); accept_event()
+	elif event.is_action_pressed("ui_up"):
+		move_requested.emit(Vector2i(0, -1)); accept_event()
+	elif event.is_action_pressed("ui_down"):
+		move_requested.emit(Vector2i(0, 1)); accept_event()
 
 func _on_focus_entered() -> void:
 	_cursor_timer = 0.0
