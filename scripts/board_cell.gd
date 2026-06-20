@@ -29,6 +29,12 @@ const C_MOD3X_GRADIENT_RIGHT := Color(0.188,       0.753, 0.188, 1.0)
 var _cursor_visible := true
 var _cursor_timer   := 0.0
 
+# Rainbow word-highlight: drawn as a frame inset past the focus ring so both
+# signals survive when the cursor sits on a glowing word. The hue is a
+# board-coherent diagonal sweep mirroring shaders/holographic.gdshader.
+var highlighted := false
+const C_HL_INSET := 3.0
+
 func _ready() -> void:
 	focus_mode = Control.FOCUS_ALL
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -41,6 +47,16 @@ func _on_gui_input(event: InputEvent) -> void:
 			and event.button_index == MOUSE_BUTTON_LEFT:
 		grab_focus()
 		cell_clicked.emit(self)
+	if event is InputEventMouseButton and event.pressed \
+			and event.button_index == MOUSE_BUTTON_RIGHT:
+		# Right-click yanks an unlocked tile back to the rack. Locked cells hold
+		# locked_letter with no current_tile, so they're untouched.
+		if current_tile != null:
+			var main := get_tree().get_first_node_in_group("main")
+			if main and main.has_method("on_tile_returned_to_rack"):
+				main.on_tile_returned_to_rack(current_tile)
+		accept_event()
+		return
 	if event.is_action_pressed("ui_left"):
 		move_requested.emit(Vector2i(-1, 0)); accept_event()
 	elif event.is_action_pressed("ui_right"):
@@ -60,7 +76,15 @@ func _on_focus_exited() -> void:
 	_cursor_timer = 0.0
 	queue_redraw()
 
+func set_highlighted(on: bool) -> void:
+	if highlighted == on:
+		return
+	highlighted = on
+	queue_redraw()
+
 func _process(delta: float) -> void:
+	if highlighted:
+		queue_redraw()  # drive the rainbow sweep while the cell is in a word
 	if not has_focus():
 		return
 	_cursor_timer += delta
@@ -110,6 +134,20 @@ func _draw() -> void:
 		draw_rect(Rect2(2, 2, w - 4, h - 4), C_CURSOR,     false)  # inner cyan ring
 		if _cursor_visible and is_empty():
 			draw_rect(Rect2(size.x * 0.5 - 6.0, size.y - 7.0, 12.0, 2.0), C_CURSOR)
+
+	if highlighted:
+		var t := Time.get_ticks_msec() / 1000.0
+		var hue := fposmod((grid_pos.x + grid_pos.y) * 0.12 + t * 0.2, 1.0)
+		draw_rect(Rect2(C_HL_INSET, C_HL_INSET, w - C_HL_INSET * 2.0, h - C_HL_INSET * 2.0),
+			_hue_to_rgb(hue), false, 2.0)
+
+# Matches hue2rgb() in shaders/holographic.gdshader so tile glow and score share
+# one rainbow ramp.
+func _hue_to_rgb(hh: float) -> Color:
+	var r := clampf(absf(fposmod(hh * 6.0,       6.0) - 3.0) - 1.0, 0.0, 1.0)
+	var g := clampf(absf(fposmod(hh * 6.0 + 4.0, 6.0) - 3.0) - 1.0, 0.0, 1.0)
+	var b := clampf(absf(fposmod(hh * 6.0 + 2.0, 6.0) - 3.0) - 1.0, 0.0, 1.0)
+	return Color(r, g, b)
 
 func _draw_horizontal_gradient(rect: Rect2, c0: Color, c1: Color) -> void:
 	var steps: int = int(rect.size.x)
@@ -187,8 +225,36 @@ func clear_all() -> void:
 	queue_redraw()
 
 # --- Drag and drop target ---
+func _get_drag_data(_at_position: Vector2) -> Variant:
+	if current_tile == null:
+		return null  # empty or locked cell — nothing to pick up
+	var main := get_tree().get_first_node_in_group("main")
+	if main and main.has_method("can_move_board_tile") and not main.can_move_board_tile():
+		return null
+	var preview_root := Control.new()
+	var preview := current_tile.duplicate() as Control
+	preview.visible = true  # the source node is invisible; duplicate inherits that
+	preview.modulate = Color(1, 1, 1, 0.85)
+	preview.position = -current_tile.size / 2.0
+	preview_root.add_child(preview)
+	set_drag_preview(preview_root)
+	return current_tile
+
 func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
-	return data is Tile and is_empty()
+	if not (data is Tile):
+		return false
+	var t := data as Tile
+	if t.location == "board":
+		if t.board_pos == grid_pos:
+			return false           # dropping on its own cell — no-op
+		return locked_letter == "" # empty -> move, unlocked -> swap, locked -> reject
+	# rack-tile placement: empty cell AND under the per-turn placement cap
+	if not is_empty():
+		return false
+	var main := get_tree().get_first_node_in_group("main")
+	if main and main.has_method("can_place_pending_tile") and not main.can_place_pending_tile():
+		return false
+	return true
 
 func _drop_data(_at_position: Vector2, data: Variant) -> void:
 	var tile := data as Tile

@@ -11,8 +11,8 @@ func test_constants_parity() -> bool:
 	if GameCore.INITIAL_TILES_PER_TURN != 4:
 		push_error("INITIAL_TILES_PER_TURN: expected 4, got %d" % GameCore.INITIAL_TILES_PER_TURN)
 		return false
-	if GameCore.INITIAL_TARGET_SCORE != 20:
-		push_error("INITIAL_TARGET_SCORE: expected 20, got %d" % GameCore.INITIAL_TARGET_SCORE)
+	if GameCore.INITIAL_TARGET_SCORE != 22:
+		push_error("INITIAL_TARGET_SCORE: expected 22, got %d" % GameCore.INITIAL_TARGET_SCORE)
 		return false
 	if GameCore.WORD_BONUS_MULTIPLIER != 2:
 		push_error("WORD_BONUS_MULTIPLIER: expected 2, got %d" % GameCore.WORD_BONUS_MULTIPLIER)
@@ -67,11 +67,12 @@ func test_scoring_word_extraction() -> bool:
 	core.board[1][0] = "A"
 	core.board[2][0] = "T"
 	var score = core._calculate_turn_score([Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0)])
-	# C=3, A=1, T=1; total=5
-	# Dictionary validation happens in _calculate_turn_score but depends on GameData
-	# For now, just verify extraction and base scoring works
-	if score < 5:
-		push_error("Expected minimum score 5 for 'CAT', got %d" % score)
+	# Whole-board scoring counts every valid sub-word of the run "CAT":
+	#   AT  = (1+1)*2 = 4
+	#   CAT = (3+1+1)*2 = 10
+	# total = 14
+	if score != 14:
+		push_error("Expected 14 for 'CAT' (AT + CAT), got %d" % score)
 		return false
 	return true
 
@@ -104,7 +105,7 @@ func test_cross_word_skip_length_one() -> bool:
 # TC6 - Target curve parity: rounds 1-4 produce expected target sequence.
 func test_target_curve_parity() -> bool:
 	var core = GameCore.new(999)
-	var expected_targets = [20, 30, 40, 55]
+	var expected_targets = [22, 28, 36, 46]
 
 	for round_num in range(4):
 		if core.target_score != expected_targets[round_num]:
@@ -130,12 +131,12 @@ func test_round_advance_ordering() -> bool:
 	core.turns_left = 1
 	core._advance_round()
 
-	# After advance: round 2, target 30, turns_left 3, tiles_per_turn 5
+	# After advance: round 2, target 28, turns_left 3, tiles_per_turn 5
 	if core.current_round != 2:
 		push_error("Round didn't advance")
 		return false
-	if core.target_score != 30:
-		push_error("Target should be 30, got %d" % core.target_score)
+	if core.target_score != 28:
+		push_error("Target should be 28, got %d" % core.target_score)
 		return false
 	if core.turns_left != 3:
 		push_error("Turns should reset to 3, got %d" % core.turns_left)
@@ -215,53 +216,57 @@ func test_modifier_scoring_doubles_letter() -> bool:
 	core.board[2][0] = "T"
 	core.board_modifiers[0][0] = GameCore.MOD_2X  # C doubled: 6 instead of 3
 	var score = core._calculate_turn_score([Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0)])
-	# Expected: (C*2 + A + T) * WORD_BONUS = (6 + 1 + 1) * 2 = 16
-	# Without modifier: (3 + 1 + 1) * 2 = 10
-	if score != 16:
-		push_error("TC11: expected 16 for CAT with C=MOD_2X, got %d" % score)
+	# Whole-board scoring counts both valid sub-words of "CAT", C doubled:
+	#   AT  = (1+1)*2 = 4
+	#   CAT = (3*2 + 1 + 1)*2 = 16
+	# total = 20  (without the modifier it would be 4 + 10 = 14)
+	if score != 20:
+		push_error("TC11: expected 20 for CAT with C=MOD_2X, got %d" % score)
 		return false
 	return true
 
-# TC12 - Modifier on invalid word still doubles the letter, no word bonus.
-func test_modifier_invalid_word_doubles_without_word_bonus() -> bool:
-	var test_word := "ZQX"
-	if GameCore.is_valid_word(test_word):
-		push_error("TC12: '%s' is in dictionary — cannot use it as an invalid-word test case" % test_word)
-		return false
+# TC12 - A run with no valid sub-words scores 0 (only valid words count now).
+func test_invalid_word_scores_zero() -> bool:
+	# ZQX has no valid length>=2 substring, so it scores nothing regardless of
+	# modifiers. The old consolation "bare letter" fallback is gone — score and
+	# highlight mirror each other, and gibberish neither glows nor scores.
+	for w in ["ZQ", "QX", "ZQX"]:
+		if GameCore.is_valid_word(w):
+			push_error("TC12: '%s' is in dictionary — invalidates this test case" % w)
+			return false
 	var core = GameCore.new(300)
-	# Place ZQX horizontally: Z=10, Q=10, X=8
 	core.board[0][0] = "Z"
 	core.board[1][0] = "Q"
 	core.board[2][0] = "X"
-	core.board_modifiers[0][0] = GameCore.MOD_2X  # Z doubled: 20
+	core.board_modifiers[0][0] = GameCore.MOD_2X
 	var score = core._calculate_turn_score([Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0)])
-	# Expected: Z(2x)=20 + Q=10 + X=8 = 38 (no WORD_BONUS since invalid)
-	var expected := 10 * 2 + 10 + 8  # 38
-	if score != expected:
-		push_error("TC12: expected %d for invalid ZQX with Z=MOD_2X, got %d" % [expected, score])
+	if score != 0:
+		push_error("TC12: expected 0 for invalid ZQX, got %d" % score)
 		return false
 	return true
 
 # TC13 - Modifier doubles in both directions when the tile is in a cross.
 func test_modifier_doubles_in_cross() -> bool:
 	var core = GameCore.new(400)
-	# Cross: horizontal "ZXQ" and vertical "JXK" sharing X at (2,2) with MOD_2X.
-	# Z(1,2)  X(2,2)*  Q(3,2)   — horizontal
-	# J(2,1)  X(2,2)*  K(2,3)   — vertical
-	core.board[1][2] = "Z"
-	core.board[2][2] = "X"
-	core.board[3][2] = "Q"
-	core.board[2][1] = "J"
-	core.board[2][3] = "K"
+	# Cross of two valid words sharing A at (2,2) with MOD_2X:
+	#   A(2,2)* T(3,2)  — horizontal "AT"
+	#   A(2,2)* S(2,3)  — vertical   "AS"
+	core.board[2][2] = "A"
+	core.board[3][2] = "T"
+	core.board[2][3] = "S"
 	core.board_modifiers[2][2] = GameCore.MOD_2X
+	for w in ["AT", "AS"]:
+		if not GameCore.is_valid_word(w):
+			push_error("TC13: '%s' not in dictionary — invalidates this test case" % w)
+			return false
 
 	var score = core._calculate_turn_score([Vector2i(2, 2)])
-	# "ZXQ": Z=10, X(2x)=16, Q=10 → 36, invalid → no bonus
-	# "JXK": J=8, X(2x)=16, K=5  → 29, invalid → no bonus
-	# Total = 65
-	var expected := 10 + 8*2 + 10 + 8 + 8*2 + 5  # 65
-	if score != expected:
-		push_error("TC13: expected %d for cross with X=MOD_2X, got %d" % [expected, score])
+	# A is doubled in BOTH words:
+	#   "AT" = (1*2 + 1)*2 = 6
+	#   "AS" = (1*2 + 1)*2 = 6
+	# total = 12
+	if score != 12:
+		push_error("TC13: expected 12 for cross with A=MOD_2X, got %d" % score)
 		return false
 	return true
 

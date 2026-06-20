@@ -100,6 +100,19 @@ border_width_bottom = 2
 border_color = Color(0.039, 0.039, 0.039, 1)
 anti_aliasing = false
 
+[sub_resource type="StyleBoxFlat" id="SB_PlayNormal"]
+content_margin_left = 6.0
+content_margin_top = 3.0
+content_margin_right = 6.0
+content_margin_bottom = 3.0
+bg_color = Color(0.7529, 0.7529, 0.7529, 1)
+border_width_left = 1
+border_width_top = 1
+border_width_right = 1
+border_width_bottom = 1
+border_color = Color(0.039, 0.039, 0.039, 1)
+anti_aliasing = false
+
 [resource]
 default_font = ExtResource("FF_W95FA")
 default_font_size = 14
@@ -119,6 +132,17 @@ Button/styles/pressed = SubResource("SB_RaisedPressed")
 Label/colors/font_color = Color(0, 0, 0, 1)
 Label/font_sizes/font_size = 14
 Panel/styles/panel = SubResource("SB_RaisedOuter")
+PlayButton/base_type = &"Button"
+PlayButton/colors/font_color = Color(0, 0, 0, 1)
+PlayButton/colors/font_disabled_color = Color(0.5019, 0.5019, 0.5019, 1)
+PlayButton/colors/font_hover_color = Color(0, 0, 0, 1)
+PlayButton/colors/font_pressed_color = Color(0, 0, 0, 1)
+PlayButton/font_sizes/font_size = 16
+PlayButton/styles/normal = SubResource("SB_PlayNormal")
+PlayButton/styles/hover = SubResource("SB_PlayNormal")
+PlayButton/styles/pressed = SubResource("SB_RaisedPressed")
+PlayButton/styles/disabled = SubResource("SB_Disabled")
+PlayButton/styles/focus = SubResource("SB_Focus")
 ScoreNeon/base_type = &"Label"
 ScoreNeon/colors/font_color = Color(0, 1, 1, 1)
 ScoreNeon/colors/font_outline_color = Color(1, 0, 1, 1)

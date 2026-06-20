@@ -121,6 +121,8 @@ func _try_place_letter_on_cursor(letter: String) -> void:
 	var cell := board.get_cell(cursor)
 	if cell == null or not cell.is_empty():
 		return
+	if not can_place_pending_tile():
+		return
 	var tile := rack.find_tile_with_letter(letter)
 	if tile == null:
 		return
@@ -128,11 +130,27 @@ func _try_place_letter_on_cursor(letter: String) -> void:
 
 # ---------- Drag and drop ----------
 func on_tile_dropped_on_cell(tile: Tile, cell: BoardCell) -> void:
-	if RunState.is_transitioning or RunState.is_upgrading or _discard_busy or not cell.is_empty():
+	if RunState.is_transitioning or RunState.is_upgrading or _discard_busy:
+		return
+	if tile.location == "board":
+		_move_board_tile(tile, cell)
+		return
+	if not cell.is_empty():
+		return
+	if not can_place_pending_tile():
 		return
 	_place_tile_on_cell(tile, cell)
 
+func can_move_board_tile() -> bool:
+	return not (RunState.is_game_over or RunState.is_transitioning \
+		or RunState.is_upgrading or _discard_busy)
+
+func can_place_pending_tile() -> bool:
+	return pending_cells.size() < RunState.tiles_per_turn
+
 func on_tile_returned_to_rack(tile: Tile) -> void:
+	if RunState.is_transitioning or RunState.is_upgrading or _discard_busy:
+		return
 	var prev_cell := board.get_cell(tile.board_pos)
 	if prev_cell:
 		prev_cell.clear_pending()
@@ -145,6 +163,7 @@ func on_tile_returned_to_rack(tile: Tile) -> void:
 	rack.add_child(tile)
 	rack.tiles_in_hand.append(tile)
 	_update_hud()
+	tile.grab_focus()  # drives _nav.set_rack via the rack's tile_focused relay
 
 func _place_tile_on_cell(tile: Tile, cell: BoardCell) -> void:
 	rack.remove_tile(tile)
@@ -158,8 +177,31 @@ func _place_tile_on_cell(tile: Tile, cell: BoardCell) -> void:
 	# steal focus away from the board cell, breaking arrow-key navigation.
 	board.focus_cell(cursor)
 	_update_hud()
-	if pending_cells.size() >= RunState.tiles_per_turn:
-		_on_end_turn_pressed()
+
+func _move_board_tile(tile: Tile, dest: BoardCell) -> void:
+	var src := board.get_cell(tile.board_pos)
+	if src == null or src == dest:
+		return
+	if dest.is_empty():
+		# MOVE into an empty cell
+		src.clear_pending()
+		pending_cells.erase(src)
+		dest.place_tile(tile)
+		pending_cells.append(dest)
+		print("[Move] %s %s -> %s" % [tile.letter, src.grid_pos, dest.grid_pos])
+	else:
+		# SWAP with another unlocked tile (locked targets were rejected upstream)
+		var other := dest.current_tile
+		if other == null:
+			return
+		src.clear_pending()
+		dest.clear_pending()
+		src.place_tile(other)   # other.board_pos -> src.grid_pos
+		dest.place_tile(tile)   # tile.board_pos  -> dest.grid_pos
+		# pending_cells membership is unchanged: both cells stay pending.
+		print("[Move] swap %s@%s <-> %s@%s" % [tile.letter, dest.grid_pos, other.letter, src.grid_pos])
+	board.focus_cell(dest.grid_pos)
+	_update_hud()
 
 func discard_rack_tile(tile: Tile) -> void:
 	if _discard_busy: return
@@ -256,83 +298,78 @@ func _spawn_glitter_at(cell: BoardCell) -> void:
 	add_child(emitter)
 	emitter.global_position = cell.global_position + Vector2(cell.size) * 0.5
 
+# Whole-board scoring: every valid word in every row/column run counts, with the
+# word bonus, regardless of which tiles are new or locked. `_collect_scoring_words`
+# is the single source of truth shared with `_refresh_highlights` so the rainbow
+# glow can never disagree with the score. Mirror any change in
+# scripts/sim/game_core.gd::_collect_scoring_words / _board_runs.
 func _calculate_turn_score() -> int:
-	var words_found: Array = []
-	var seen_lines: Dictionary = {}
-
-	for cell in pending_cells:
-		var horiz := _extract_word_in_direction(cell, Vector2i(1, 0))
-		var vert  := _extract_word_in_direction(cell, Vector2i(0, 1))
-		if horiz.text.length() >= 2 and not seen_lines.has("H_" + str(horiz.start)):
-			words_found.append(horiz)
-			seen_lines["H_" + str(horiz.start)] = true
-		if vert.text.length() >= 2 and not seen_lines.has("V_" + str(vert.start)):
-			words_found.append(vert)
-			seen_lines["V_" + str(vert.start)] = true
-
 	var total := 0
-	for w in words_found:
-		if GameData.is_valid_word(w.text):
-			# Full word is valid - score it with word bonus
-			var word_points := _score_word(w)
-			var mods_str := _get_modifiers_str(w)
-			print("VALID:   %s = %d points (modifiers: %s)" % [w.text, word_points, mods_str])
-			total += word_points
-		else:
-			# Full word is invalid - try to find valid sub-words
-			var sub_words_found := false
-			# Try all possible sub-words (length 2+)
-			for start_idx in range(w.text.length() - 1):
-				for end_idx in range(start_idx + 2, w.text.length() + 1):
-					var sub_word: String = w.text.substr(start_idx, end_idx - start_idx)
-					if GameData.is_valid_word(sub_word):
-						sub_words_found = true
-						# Calculate score for sub-word
-						var sub_points := 0
-						var sub_mods: Array = []
-						for i in range(start_idx, end_idx):
-							var ch: String = w.text[i]
-							var cell: BoardCell = w.cells[i]
-							var letter_pts: int = GameData.score_for_letter(ch)
-							var mod := cell.get_modifier()
-							if mod == GameData.MOD_2X:
-								letter_pts *= 2
-								sub_mods.append("2x@%d" % (i - start_idx))
-							elif mod == GameData.MOD_3X:
-								letter_pts *= 3
-								sub_mods.append("3x@%d" % (i - start_idx))
-							sub_points += letter_pts
-						# Apply word bonus if at least one new tile in sub-word
-						var has_new_tile := false
-						for i in range(start_idx, end_idx):
-							if w.cells[i] in pending_cells:
-								has_new_tile = true
-								break
-						if has_new_tile:
-							sub_points *= WORD_BONUS_MULTIPLIER
-						var mods_str := ", ".join(sub_mods) if sub_mods.size() > 0 else "none"
-						print("VALID:   %s = %d points (modifiers: %s)" % [sub_word, sub_points, mods_str])
-						total += sub_points
-			# If no valid sub-words, score just the letter values (no word bonus)
-			if not sub_words_found:
-				var letter_points := 0
-				var mods_parts: Array = []
-				for i in (w.text as String).length():
-					var ch: String = w.text[i]
-					var cell: BoardCell = w.cells[i]
-					var letter_pts: int = GameData.score_for_letter(ch)
-					var mod := cell.get_modifier()
-					if mod == GameData.MOD_2X:
-						letter_pts *= 2
-						mods_parts.append("2x@%d" % i)
-					elif mod == GameData.MOD_3X:
-						letter_pts *= 3
-						mods_parts.append("3x@%d" % i)
-					letter_points += letter_pts
-				var mods_str := ", ".join(mods_parts) if mods_parts.size() > 0 else "none"
-				print("invalid: %s = %d points (modifiers: %s)" % [w.text, letter_points, mods_str])
-				total += letter_points
+	for w in _collect_scoring_words():
+		var word_points := _score_word(w)
+		print("[Turn] word %s = %d (modifiers: %s)" % [w.text, word_points, _get_modifiers_str(w)])
+		total += word_points
 	return total
+
+# Every valid (length >= 2) substring of every maximal run on the board.
+func _collect_scoring_words() -> Array:
+	var words: Array = []
+	for run in _board_runs():
+		var text: String = run.text
+		var cells: Array = run.cells
+		var n := text.length()
+		for start in n - 1:
+			for stop in range(start + 2, n + 1):
+				var sub := text.substr(start, stop - start)
+				if GameData.is_valid_word(sub):
+					words.append({"text": sub, "cells": cells.slice(start, stop)})
+	return words
+
+# Maximal contiguous letter runs (length >= 2) across every row and column.
+func _board_runs() -> Array:
+	var runs: Array = []
+	var n := Board.BOARD_SIZE
+	for y in n:
+		var x := 0
+		while x < n:
+			if board.cells[x][y].get_letter() == "":
+				x += 1
+				continue
+			var cells_arr: Array = []
+			var text := ""
+			while x < n and board.cells[x][y].get_letter() != "":
+				cells_arr.append(board.cells[x][y])
+				text += board.cells[x][y].get_letter()
+				x += 1
+			if cells_arr.size() >= 2:
+				runs.append({"text": text, "cells": cells_arr})
+	for x in n:
+		var y := 0
+		while y < n:
+			if board.cells[x][y].get_letter() == "":
+				y += 1
+				continue
+			var cells_arr: Array = []
+			var text := ""
+			while y < n and board.cells[x][y].get_letter() != "":
+				cells_arr.append(board.cells[x][y])
+				text += board.cells[x][y].get_letter()
+				y += 1
+			if cells_arr.size() >= 2:
+				runs.append({"text": text, "cells": cells_arr})
+	return runs
+
+# Light every cell that belongs to a scoring word; clear the rest. Persists
+# across turns because locked words stay in the scored set until the round wipes.
+func _refresh_highlights() -> void:
+	var lit: Dictionary = {}
+	for w in _collect_scoring_words():
+		for c in w.cells:
+			lit[c] = true
+	for x in Board.BOARD_SIZE:
+		for y in Board.BOARD_SIZE:
+			var c: BoardCell = board.cells[x][y]
+			c.set_highlighted(lit.has(c))
 
 func _score_word(w: Dictionary) -> int:
 	var word_points := 0
@@ -360,26 +397,6 @@ func _get_modifiers_str(w: Dictionary) -> String:
 			mods_parts.append("3x@%d" % i)
 	return ", ".join(mods_parts) if mods_parts.size() > 0 else "none"
 
-func _extract_word_in_direction(cell: BoardCell, dir: Vector2i) -> Dictionary:
-	var start_pos := cell.grid_pos
-	while true:
-		var prev := start_pos - dir
-		var prev_cell := board.get_cell(prev)
-		if prev_cell == null or prev_cell.get_letter() == "":
-			break
-		start_pos = prev
-	var text := ""
-	var cells_arr: Array = []
-	var p := start_pos
-	while true:
-		var c := board.get_cell(p)
-		if c == null or c.get_letter() == "":
-			break
-		text += c.get_letter()
-		cells_arr.append(c)
-		p += dir
-	return {"text": text, "start": start_pos, "cells": cells_arr}
-
 func _update_hud() -> void:
 	var round_str: String
 	if RunState.is_difficulty_mode():
@@ -390,6 +407,9 @@ func _update_hud() -> void:
 		RunState.total_score, round_str, RunState.round_score, RunState.target_score]
 	tiles_left_label.text = "Turns left: %d  |  Tiles/turn: %d" % [
 		RunState.turns_left, RunState.tiles_per_turn]
+	end_turn_button.disabled = pending_cells.is_empty() \
+		or RunState.is_transitioning or RunState.is_upgrading or _discard_busy
+	_refresh_highlights()
 
 func _on_round_won(round_num: int, _round_score: int, _target: int) -> void:
 	pending_cells.clear()

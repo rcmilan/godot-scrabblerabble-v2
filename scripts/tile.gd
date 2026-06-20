@@ -103,3 +103,13 @@ func _get_drag_data(_at_position: Vector2) -> Variant:
 	preview_root.add_child(preview)
 	set_drag_preview(preview_root)
 	return self
+
+# A rack tile also acts as a drop target so the whole rack — not just its empty
+# margins — accepts a board tile dragged back to the hand.
+func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
+	return data is Tile and (data as Tile).location == "board"
+
+func _drop_data(_at_position: Vector2, data: Variant) -> void:
+	var main := get_tree().get_first_node_in_group("main")
+	if main and main.has_method("on_tile_returned_to_rack"):
+		main.on_tile_returned_to_rack(data as Tile)
