@@ -2,6 +2,8 @@
 class_name Tile
 extends Panel
 
+signal move_requested(dir: Vector2i)
+
 @export var letter:   String = "A"
 @export var modifier: String = ""
 
@@ -30,6 +32,16 @@ func _ready() -> void:
 	focus_mode = Control.FOCUS_ALL
 	focus_entered.connect(queue_redraw)
 	focus_exited.connect(queue_redraw)
+
+func _gui_input(event: InputEvent) -> void:
+	if event.is_action_pressed("ui_left"):
+		move_requested.emit(Vector2i(-1, 0)); accept_event()
+	elif event.is_action_pressed("ui_right"):
+		move_requested.emit(Vector2i(1, 0)); accept_event()
+	elif event.is_action_pressed("ui_up"):
+		move_requested.emit(Vector2i(0, -1)); accept_event()
+	elif event.is_action_pressed("ui_down"):
+		move_requested.emit(Vector2i(0, 1)); accept_event()
 
 func set_letter(new_letter: String) -> void:
 	letter = new_letter.to_upper()

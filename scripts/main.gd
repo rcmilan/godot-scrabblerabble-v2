@@ -32,7 +32,10 @@ var _anim_layer: CanvasLayer
 @onready var end_turn_button:  Button = %EndTurnButton
 
 var pending_cells: Array[BoardCell] = []
-var cursor:        Vector2i = Vector2i(0, 0)
+var _nav := Navigation.new()
+
+var cursor: Vector2i:
+	get: return _nav.board_pos
 
 func _ready() -> void:
 	add_to_group("main")
@@ -41,9 +44,12 @@ func _ready() -> void:
 	add_child(_anim_layer)
 	randomize()
 	end_turn_button.pressed.connect(_on_end_turn_pressed)
-	cursor = Vector2i(3, 3)
+	_nav.set_board(Vector2i(3, 3))
 	board.focus_cell(cursor)
 	board.cell_focused.connect(_on_cell_focused)
+	board.cell_move_requested.connect(_on_cell_move_requested)
+	rack.tile_move_requested.connect(_on_rack_move_requested)
+	rack.tile_focused.connect(_on_tile_focused)
 	RunState.reset()
 	RunState.round_won.connect(_on_round_won)
 	RunState.game_over.connect(_on_game_over)
@@ -52,7 +58,33 @@ func _ready() -> void:
 	_maybe_start_autoplay()
 
 func _on_cell_focused(cell: BoardCell) -> void:
-	cursor = cell.grid_pos
+	_nav.set_board(cell.grid_pos)
+
+func _on_cell_move_requested(dir: Vector2i) -> void:
+	_move_nav(dir)
+
+func _on_rack_move_requested(dir: Vector2i) -> void:
+	_move_nav(dir)
+
+func _on_tile_focused(index: int) -> void:
+	if index >= 0:
+		_nav.set_rack(index)
+
+func _move_nav(dir: Vector2i) -> void:
+	var prev_region := _nav.region
+	_nav.move(dir, rack.tiles_in_hand.size())
+	if _nav.region != prev_region:
+		print("[Nav] region %s -> %s" % [_region_name(prev_region), _region_name(_nav.region)])
+	_apply_nav_focus()
+
+func _region_name(r: int) -> String:
+	return "RACK" if r == Navigation.Region.RACK else "BOARD"
+
+func _apply_nav_focus() -> void:
+	if _nav.region == Navigation.Region.BOARD:
+		board.focus_cell(_nav.board_pos)
+	else:
+		_focus_rack_index(_nav.rack_index)
 
 # ---------- Input ----------
 func _unhandled_input(event: InputEvent) -> void:
@@ -65,49 +97,20 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 
-	var focused = get_viewport().gui_get_focus_owner()
-	var rack_idx := rack.tiles_in_hand.find(focused)
-
-	if rack_idx != -1:
-		# --- in the rack ---
-		if event.is_action_pressed("ui_left"):
-			_focus_rack_index(rack_idx - 1); get_viewport().set_input_as_handled()
-		elif event.is_action_pressed("ui_right"):
-			_focus_rack_index(rack_idx + 1); get_viewport().set_input_as_handled()
-		elif event.is_action_pressed("ui_up"):
-			board.focus_cell(cursor); get_viewport().set_input_as_handled()
-		elif event.is_action_pressed("ui_down"):
-			get_viewport().set_input_as_handled()
+	if event.is_action_pressed("ui_left") or event.is_action_pressed("ui_right") \
+			or event.is_action_pressed("ui_up") or event.is_action_pressed("ui_down"):
+		# Focus was lost (e.g. HBox steal on tile removal); re-anchor on the
+		# model's current region rather than forcing the board.
+		_apply_nav_focus()
+		get_viewport().set_input_as_handled()
 		return
 
-	# --- on the board ---
-	if event.is_action_pressed("ui_left"):
-		_move_cursor(Vector2i(-1, 0)); get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("ui_right"):
-		_move_cursor(Vector2i(1, 0)); get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("ui_up"):
-		_move_cursor(Vector2i(0, -1)); get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("ui_down"):
-		if cursor.y >= Board.BOARD_SIZE - 1:
-			_enter_rack(); get_viewport().set_input_as_handled()
-		else:
-			_move_cursor(Vector2i(0, 1)); get_viewport().set_input_as_handled()
-	elif event.is_action_pressed("confirm_turn"):
+	if event.is_action_pressed("confirm_turn"):
 		_on_end_turn_pressed()
 	elif event is InputEventKey and event.pressed and not event.echo:
 		var key_event := event as InputEventKey
 		if key_event.keycode >= KEY_A and key_event.keycode <= KEY_Z:
 			_try_place_letter_on_cursor(char(key_event.keycode))
-
-func _move_cursor(delta: Vector2i) -> void:
-	var new_pos := cursor + delta
-	new_pos.x = clamp(new_pos.x, 0, Board.BOARD_SIZE - 1)
-	new_pos.y = clamp(new_pos.y, 0, Board.BOARD_SIZE - 1)
-	cursor = new_pos
-	board.focus_cell(cursor)
-
-func _enter_rack() -> void:
-	_focus_rack_index(clampi(cursor.x, 0, rack.tiles_in_hand.size() - 1))
 
 func _focus_rack_index(idx: int) -> void:
 	if rack.tiles_in_hand.is_empty():

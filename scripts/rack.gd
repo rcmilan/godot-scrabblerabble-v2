@@ -5,6 +5,9 @@ extends HBoxContainer
 const TILE_SCENE: PackedScene = preload("res://scenes/tile.tscn")
 const RACK_SIZE: int = 7
 
+signal tile_move_requested(dir: Vector2i)
+signal tile_focused(index: int)
+
 var tiles_in_hand: Array[Tile] = []
 
 func _ready() -> void:
@@ -18,6 +21,8 @@ func refill() -> void:
 		tile.letter = letter
 		add_child(tile)
 		tiles_in_hand.append(tile)
+		tile.move_requested.connect(func(dir): tile_move_requested.emit(dir))
+		tile.focus_entered.connect(func(): tile_focused.emit(tiles_in_hand.find(tile)))
 	_apply_modifiers()
 
 func _apply_modifiers() -> void:
@@ -57,6 +62,8 @@ func discard_replace(old_tile: Tile) -> Dictionary:
 	add_child(new_tile)
 	move_child(new_tile, idx)
 	tiles_in_hand.insert(idx, new_tile)
+	new_tile.move_requested.connect(func(dir): tile_move_requested.emit(dir))
+	new_tile.focus_entered.connect(func(): tile_focused.emit(tiles_in_hand.find(new_tile)))
 	_apply_modifiers()
 	return {"old_tile": old_tile, "new_tile": new_tile, "slot": idx}
 
