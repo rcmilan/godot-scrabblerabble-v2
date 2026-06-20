@@ -8,7 +8,8 @@ extends RefCounted
 # Progression constants (copied from RunState, main.gd, board.gd, rack.gd).
 const TURNS_PER_ROUND:        int = 3
 const INITIAL_TILES_PER_TURN: int = 4
-const INITIAL_TARGET_SCORE:   int = 20
+const INITIAL_TARGET_SCORE:   int = 22
+const ENDLESS_GROWTH:         float = 1.28
 const WORD_BONUS_MULTIPLIER:  int = 2
 const BOARD_SIZE:             int = 8
 const RACK_SIZE:              int = 7
@@ -87,7 +88,6 @@ var modifier_build: Dictionary = {}
 var letter_modifiers: Dictionary = {}
 
 # Target curve state.
-var _t_prev: float = 0.0
 var _t_curr: float = float(INITIAL_TARGET_SCORE)
 
 func _init(seed: int, build: Dictionary = {}, lmods: Dictionary = {}) -> void:
@@ -383,13 +383,6 @@ func _advance_round() -> void:
 	turns_left = TURNS_PER_ROUND
 	tiles_per_turn += 1
 	discards_left = DISCARDS_PER_ROUND
-	if current_round == 2:
-		_t_prev = _t_curr
-		_t_curr = 30.0
-		target_score = 30
-	else:
-		var next := _t_curr + _t_prev / 2.0
-		_t_prev = _t_curr
-		_t_curr = next
-		target_score = int(next)
+	_t_curr *= ENDLESS_GROWTH
+	target_score = int(round(_t_curr / 2.0) * 2.0)
 	clear_board()

@@ -12,14 +12,20 @@ enum Mode { EASY, MEDIUM, HARD, ENDLESS }
 
 const TURNS_PER_ROUND:        int = 3
 const INITIAL_TILES_PER_TURN: int = 4
-const INITIAL_TARGET_SCORE:   int = 20
+const INITIAL_TARGET_SCORE:   int = 22
 const UPGRADE_EVERY_N_ROUNDS: int = 3
 const DISCARDS_PER_ROUND:     int = 3
 const ROUNDS_PER_DIFFICULTY:  int = 5
+# Endless target curve: round-1 target × ENDLESS_GROWTH per round, rounded to
+# the nearest even number. Tuned against the simulator (whole-board scoring).
+const ENDLESS_GROWTH:         float = 1.28
+# Per-round difficulty targets, retuned for whole-board scoring via the sim:
+# Easy clears for any competent play (casual ~80%), Medium ~80% for a solid
+# player, Hard ~65% even for expert play. See scripts/sim/README.md.
 const DIFFICULTY_TARGETS := {
-	Mode.EASY:   [12, 18, 26, 34, 44],
-	Mode.MEDIUM: [16, 24, 34, 46, 60],
-	Mode.HARD:   [25, 38, 52, 70, 92],
+	Mode.EASY:   [9, 18, 26, 34, 44],
+	Mode.MEDIUM: [16, 36, 52, 70, 92],
+	Mode.HARD:   [22, 52, 80, 114, 154],
 }
 
 var current_round:  int   = 1
@@ -39,7 +45,6 @@ var mode:           int   = Mode.ENDLESS
 var total_score:    int   = 0
 var session_high_scores := { Mode.EASY: 0, Mode.MEDIUM: 0, Mode.HARD: 0 }
 
-var _t_prev: float = 0.0
 var _t_curr: float = float(INITIAL_TARGET_SCORE)
 
 func reset() -> void:
@@ -54,7 +59,6 @@ func reset() -> void:
 	history.clear()
 	modifier_build.clear()
 	letter_modifiers.clear()
-	_t_prev      = 0.0
 	_t_curr      = float(INITIAL_TARGET_SCORE)
 	if is_difficulty_mode():
 		target_score = DIFFICULTY_TARGETS[mode][0]
@@ -139,15 +143,9 @@ func _advance_round() -> void:
 	discards_left_changed.emit(discards_left)
 	if is_difficulty_mode():
 		target_score = DIFFICULTY_TARGETS[mode][current_round - 1]
-	elif current_round == 2:
-		_t_prev      = _t_curr
-		_t_curr      = 30.0
-		target_score = 30
 	else:
-		var next := _t_curr + _t_prev / 2.0
-		_t_prev      = _t_curr
-		_t_curr      = next
-		target_score = int(next)
+		_t_curr     *= ENDLESS_GROWTH
+		target_score = int(round(_t_curr / 2.0) * 2.0)
 	print("[RunState] round %d won (%d / %d) — now round %d, target %d, %d tiles/turn" % [
 		won_round, won_score, won_target, current_round, target_score, tiles_per_turn])
 	round_won.emit(won_round, won_score, won_target)

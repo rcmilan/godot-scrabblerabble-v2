@@ -11,8 +11,8 @@ func test_constants_parity() -> bool:
 	if GameCore.INITIAL_TILES_PER_TURN != 4:
 		push_error("INITIAL_TILES_PER_TURN: expected 4, got %d" % GameCore.INITIAL_TILES_PER_TURN)
 		return false
-	if GameCore.INITIAL_TARGET_SCORE != 20:
-		push_error("INITIAL_TARGET_SCORE: expected 20, got %d" % GameCore.INITIAL_TARGET_SCORE)
+	if GameCore.INITIAL_TARGET_SCORE != 22:
+		push_error("INITIAL_TARGET_SCORE: expected 22, got %d" % GameCore.INITIAL_TARGET_SCORE)
 		return false
 	if GameCore.WORD_BONUS_MULTIPLIER != 2:
 		push_error("WORD_BONUS_MULTIPLIER: expected 2, got %d" % GameCore.WORD_BONUS_MULTIPLIER)
@@ -105,7 +105,7 @@ func test_cross_word_skip_length_one() -> bool:
 # TC6 - Target curve parity: rounds 1-4 produce expected target sequence.
 func test_target_curve_parity() -> bool:
 	var core = GameCore.new(999)
-	var expected_targets = [20, 30, 40, 55]
+	var expected_targets = [22, 28, 36, 46]
 
 	for round_num in range(4):
 		if core.target_score != expected_targets[round_num]:
@@ -131,12 +131,12 @@ func test_round_advance_ordering() -> bool:
 	core.turns_left = 1
 	core._advance_round()
 
-	# After advance: round 2, target 30, turns_left 3, tiles_per_turn 5
+	# After advance: round 2, target 28, turns_left 3, tiles_per_turn 5
 	if core.current_round != 2:
 		push_error("Round didn't advance")
 		return false
-	if core.target_score != 30:
-		push_error("Target should be 30, got %d" % core.target_score)
+	if core.target_score != 28:
+		push_error("Target should be 28, got %d" % core.target_score)
 		return false
 	if core.turns_left != 3:
 		push_error("Turns should reset to 3, got %d" % core.turns_left)
