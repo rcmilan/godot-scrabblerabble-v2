@@ -128,11 +128,22 @@ func _try_place_letter_on_cursor(letter: String) -> void:
 
 # ---------- Drag and drop ----------
 func on_tile_dropped_on_cell(tile: Tile, cell: BoardCell) -> void:
-	if RunState.is_transitioning or RunState.is_upgrading or _discard_busy or not cell.is_empty():
+	if RunState.is_transitioning or RunState.is_upgrading or _discard_busy:
+		return
+	if tile.location == "board":
+		_move_board_tile(tile, cell)
+		return
+	if not cell.is_empty():
 		return
 	_place_tile_on_cell(tile, cell)
 
+func can_move_board_tile() -> bool:
+	return not (RunState.is_game_over or RunState.is_transitioning \
+		or RunState.is_upgrading or _discard_busy)
+
 func on_tile_returned_to_rack(tile: Tile) -> void:
+	if RunState.is_transitioning or RunState.is_upgrading or _discard_busy:
+		return
 	var prev_cell := board.get_cell(tile.board_pos)
 	if prev_cell:
 		prev_cell.clear_pending()
@@ -145,6 +156,7 @@ func on_tile_returned_to_rack(tile: Tile) -> void:
 	rack.add_child(tile)
 	rack.tiles_in_hand.append(tile)
 	_update_hud()
+	tile.grab_focus()  # drives _nav.set_rack via the rack's tile_focused relay
 
 func _place_tile_on_cell(tile: Tile, cell: BoardCell) -> void:
 	rack.remove_tile(tile)
@@ -160,6 +172,31 @@ func _place_tile_on_cell(tile: Tile, cell: BoardCell) -> void:
 	_update_hud()
 	if pending_cells.size() >= RunState.tiles_per_turn:
 		_on_end_turn_pressed()
+
+func _move_board_tile(tile: Tile, dest: BoardCell) -> void:
+	var src := board.get_cell(tile.board_pos)
+	if src == null or src == dest:
+		return
+	if dest.is_empty():
+		# MOVE into an empty cell
+		src.clear_pending()
+		pending_cells.erase(src)
+		dest.place_tile(tile)
+		pending_cells.append(dest)
+		print("[Move] %s %s -> %s" % [tile.letter, src.grid_pos, dest.grid_pos])
+	else:
+		# SWAP with another unlocked tile (locked targets were rejected upstream)
+		var other := dest.current_tile
+		if other == null:
+			return
+		src.clear_pending()
+		dest.clear_pending()
+		src.place_tile(other)   # other.board_pos -> src.grid_pos
+		dest.place_tile(tile)   # tile.board_pos  -> dest.grid_pos
+		# pending_cells membership is unchanged: both cells stay pending.
+		print("[Move] swap %s@%s <-> %s@%s" % [tile.letter, dest.grid_pos, other.letter, src.grid_pos])
+	board.focus_cell(dest.grid_pos)
+	_update_hud()
 
 func discard_rack_tile(tile: Tile) -> void:
 	if _discard_busy: return

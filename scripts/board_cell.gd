@@ -187,8 +187,30 @@ func clear_all() -> void:
 	queue_redraw()
 
 # --- Drag and drop target ---
+func _get_drag_data(_at_position: Vector2) -> Variant:
+	if current_tile == null:
+		return null  # empty or locked cell — nothing to pick up
+	var main := get_tree().get_first_node_in_group("main")
+	if main and main.has_method("can_move_board_tile") and not main.can_move_board_tile():
+		return null
+	var preview_root := Control.new()
+	var preview := current_tile.duplicate() as Control
+	preview.visible = true  # the source node is invisible; duplicate inherits that
+	preview.modulate = Color(1, 1, 1, 0.85)
+	preview.position = -current_tile.size / 2.0
+	preview_root.add_child(preview)
+	set_drag_preview(preview_root)
+	return current_tile
+
 func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
-	return data is Tile and is_empty()
+	if not (data is Tile):
+		return false
+	var t := data as Tile
+	if t.location == "board":
+		if t.board_pos == grid_pos:
+			return false           # dropping on its own cell — no-op
+		return locked_letter == "" # empty -> move, unlocked -> swap, locked -> reject
+	return is_empty()              # rack-tile placement, unchanged
 
 func _drop_data(_at_position: Vector2, data: Variant) -> void:
 	var tile := data as Tile
