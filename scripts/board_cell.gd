@@ -41,6 +41,16 @@ func _on_gui_input(event: InputEvent) -> void:
 			and event.button_index == MOUSE_BUTTON_LEFT:
 		grab_focus()
 		cell_clicked.emit(self)
+	if event is InputEventMouseButton and event.pressed \
+			and event.button_index == MOUSE_BUTTON_RIGHT:
+		# Right-click yanks an unlocked tile back to the rack. Locked cells hold
+		# locked_letter with no current_tile, so they're untouched.
+		if current_tile != null:
+			var main := get_tree().get_first_node_in_group("main")
+			if main and main.has_method("on_tile_returned_to_rack"):
+				main.on_tile_returned_to_rack(current_tile)
+		accept_event()
+		return
 	if event.is_action_pressed("ui_left"):
 		move_requested.emit(Vector2i(-1, 0)); accept_event()
 	elif event.is_action_pressed("ui_right"):
