@@ -129,13 +129,6 @@ layout_mode = 2
 size_flags_horizontal = 3
 text = "Placed: 0 / 4"
 
-[node name="EndTurnButton" type="Button" parent="WinFrame/InnerVBox/GameArea/HudMargin/HUD" unique_id=532300904]
-unique_name_in_owner = true
-custom_minimum_size = Vector2(120, 32)
-layout_mode = 2
-theme_type_variation = &"PlayButton"
-text = "PLAY"
-
 [node name="Board" type="GridContainer" parent="WinFrame/InnerVBox/GameArea" unique_id=1653921811]
 unique_name_in_owner = true
 layout_mode = 2
@@ -170,3 +163,20 @@ offset_bottom = 208.0
 grow_horizontal = 0
 grow_vertical = 2
 script = ExtResource("7_bin")
+
+[node name="EndTurnButton" type="Button" parent="WinFrame" unique_id=532300904]
+unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 32)
+layout_mode = 1
+anchor_left = 1.0
+anchor_top = 0.5
+anchor_right = 1.0
+anchor_bottom = 0.5
+offset_left = -152.0
+offset_top = -16.0
+offset_right = -32.0
+offset_bottom = 16.0
+grow_horizontal = 0
+grow_vertical = 2
+theme_type_variation = &"PlayButton"
+text = "PLAY"
