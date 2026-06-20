@@ -210,7 +210,13 @@ func _can_drop_data(_at_position: Vector2, data: Variant) -> bool:
 		if t.board_pos == grid_pos:
 			return false           # dropping on its own cell — no-op
 		return locked_letter == "" # empty -> move, unlocked -> swap, locked -> reject
-	return is_empty()              # rack-tile placement, unchanged
+	# rack-tile placement: empty cell AND under the per-turn placement cap
+	if not is_empty():
+		return false
+	var main := get_tree().get_first_node_in_group("main")
+	if main and main.has_method("can_place_pending_tile") and not main.can_place_pending_tile():
+		return false
+	return true
 
 func _drop_data(_at_position: Vector2, data: Variant) -> void:
 	var tile := data as Tile

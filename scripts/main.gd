@@ -121,6 +121,8 @@ func _try_place_letter_on_cursor(letter: String) -> void:
 	var cell := board.get_cell(cursor)
 	if cell == null or not cell.is_empty():
 		return
+	if not can_place_pending_tile():
+		return
 	var tile := rack.find_tile_with_letter(letter)
 	if tile == null:
 		return
@@ -135,11 +137,16 @@ func on_tile_dropped_on_cell(tile: Tile, cell: BoardCell) -> void:
 		return
 	if not cell.is_empty():
 		return
+	if not can_place_pending_tile():
+		return
 	_place_tile_on_cell(tile, cell)
 
 func can_move_board_tile() -> bool:
 	return not (RunState.is_game_over or RunState.is_transitioning \
 		or RunState.is_upgrading or _discard_busy)
+
+func can_place_pending_tile() -> bool:
+	return pending_cells.size() < RunState.tiles_per_turn
 
 func on_tile_returned_to_rack(tile: Tile) -> void:
 	if RunState.is_transitioning or RunState.is_upgrading or _discard_busy:
@@ -170,8 +177,6 @@ func _place_tile_on_cell(tile: Tile, cell: BoardCell) -> void:
 	# steal focus away from the board cell, breaking arrow-key navigation.
 	board.focus_cell(cursor)
 	_update_hud()
-	if pending_cells.size() >= RunState.tiles_per_turn:
-		_on_end_turn_pressed()
 
 func _move_board_tile(tile: Tile, dest: BoardCell) -> void:
 	var src := board.get_cell(tile.board_pos)
@@ -427,6 +432,8 @@ func _update_hud() -> void:
 		RunState.total_score, round_str, RunState.round_score, RunState.target_score]
 	tiles_left_label.text = "Turns left: %d  |  Tiles/turn: %d" % [
 		RunState.turns_left, RunState.tiles_per_turn]
+	end_turn_button.disabled = pending_cells.is_empty() \
+		or RunState.is_transitioning or RunState.is_upgrading or _discard_busy
 
 func _on_round_won(round_num: int, _round_score: int, _target: int) -> void:
 	pending_cells.clear()

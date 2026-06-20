@@ -103,13 +103,19 @@ layout_mode = 2
 size_flags_vertical = 3
 alignment = 1
 
-[node name="HUD" type="HBoxContainer" parent="WinFrame/InnerVBox/GameArea" unique_id=2024802589]
+[node name="HudMargin" type="MarginContainer" parent="WinFrame/InnerVBox/GameArea" unique_id=1553186514]
+layout_mode = 2
+theme_override_constants/margin_left = 10
+theme_override_constants/margin_right = 10
+
+[node name="HUD" type="HBoxContainer" parent="WinFrame/InnerVBox/GameArea/HudMargin" unique_id=2024802589]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
+theme_override_constants/separation = 12
 alignment = 1
 
-[node name="ScoreLabel" type="Label" parent="WinFrame/InnerVBox/GameArea/HUD" unique_id=1747062985]
+[node name="ScoreLabel" type="Label" parent="WinFrame/InnerVBox/GameArea/HudMargin/HUD" unique_id=1747062985]
 unique_name_in_owner = true
 material = SubResource("SM_Holo")
 layout_mode = 2
@@ -117,16 +123,18 @@ size_flags_horizontal = 3
 theme_type_variation = &"ScoreNeon"
 text = "Score: 0"
 
-[node name="TilesLeftLabel" type="Label" parent="WinFrame/InnerVBox/GameArea/HUD" unique_id=232249434]
+[node name="TilesLeftLabel" type="Label" parent="WinFrame/InnerVBox/GameArea/HudMargin/HUD" unique_id=232249434]
 unique_name_in_owner = true
 layout_mode = 2
 size_flags_horizontal = 3
 text = "Placed: 0 / 4"
 
-[node name="EndTurnButton" type="Button" parent="WinFrame/InnerVBox/GameArea/HUD" unique_id=532300904]
+[node name="EndTurnButton" type="Button" parent="WinFrame/InnerVBox/GameArea/HudMargin/HUD" unique_id=532300904]
 unique_name_in_owner = true
+custom_minimum_size = Vector2(120, 32)
 layout_mode = 2
-text = "END TURN"
+theme_type_variation = &"PlayButton"
+text = "PLAY"
 
 [node name="Board" type="GridContainer" parent="WinFrame/InnerVBox/GameArea" unique_id=1653921811]
 unique_name_in_owner = true
