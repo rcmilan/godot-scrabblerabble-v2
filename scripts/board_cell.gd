@@ -29,6 +29,12 @@ const C_MOD3X_GRADIENT_RIGHT := Color(0.188,       0.753, 0.188, 1.0)
 var _cursor_visible := true
 var _cursor_timer   := 0.0
 
+# Rainbow word-highlight: drawn as a frame inset past the focus ring so both
+# signals survive when the cursor sits on a glowing word. The hue is a
+# board-coherent diagonal sweep mirroring shaders/holographic.gdshader.
+var highlighted := false
+const C_HL_INSET := 3.0
+
 func _ready() -> void:
 	focus_mode = Control.FOCUS_ALL
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -70,7 +76,15 @@ func _on_focus_exited() -> void:
 	_cursor_timer = 0.0
 	queue_redraw()
 
+func set_highlighted(on: bool) -> void:
+	if highlighted == on:
+		return
+	highlighted = on
+	queue_redraw()
+
 func _process(delta: float) -> void:
+	if highlighted:
+		queue_redraw()  # drive the rainbow sweep while the cell is in a word
 	if not has_focus():
 		return
 	_cursor_timer += delta
@@ -120,6 +134,20 @@ func _draw() -> void:
 		draw_rect(Rect2(2, 2, w - 4, h - 4), C_CURSOR,     false)  # inner cyan ring
 		if _cursor_visible and is_empty():
 			draw_rect(Rect2(size.x * 0.5 - 6.0, size.y - 7.0, 12.0, 2.0), C_CURSOR)
+
+	if highlighted:
+		var t := Time.get_ticks_msec() / 1000.0
+		var hue := fposmod((grid_pos.x + grid_pos.y) * 0.12 + t * 0.2, 1.0)
+		draw_rect(Rect2(C_HL_INSET, C_HL_INSET, w - C_HL_INSET * 2.0, h - C_HL_INSET * 2.0),
+			_hue_to_rgb(hue), false, 2.0)
+
+# Matches hue2rgb() in shaders/holographic.gdshader so tile glow and score share
+# one rainbow ramp.
+func _hue_to_rgb(hh: float) -> Color:
+	var r := clampf(absf(fposmod(hh * 6.0,       6.0) - 3.0) - 1.0, 0.0, 1.0)
+	var g := clampf(absf(fposmod(hh * 6.0 + 4.0, 6.0) - 3.0) - 1.0, 0.0, 1.0)
+	var b := clampf(absf(fposmod(hh * 6.0 + 2.0, 6.0) - 3.0) - 1.0, 0.0, 1.0)
+	return Color(r, g, b)
 
 func _draw_horizontal_gradient(rect: Rect2, c0: Color, c1: Color) -> void:
 	var steps: int = int(rect.size.x)
