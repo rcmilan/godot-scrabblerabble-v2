@@ -3,6 +3,13 @@ extends RefCounted
 
 const GameCore = preload("res://scripts/sim/game_core.gd")
 
+# Random premium layout would break hand-computed sums — zero it for tests
+# that assert exact scores unrelated to premiums.
+func _zero_premiums(core) -> void:
+	for x in GameCore.BOARD_SIZE:
+		for y in GameCore.BOARD_SIZE:
+			core.board_premiums[x][y] = GameCore.PREM_NONE
+
 # TC1 - Constants parity: GameCore constants match the canonical values.
 func test_constants_parity() -> bool:
 	if GameCore.TURNS_PER_ROUND != 3:
@@ -26,8 +33,10 @@ func test_constants_parity() -> bool:
 	return true
 
 # TC2 - Rack draw determinism: seed=12345 produces the expected sequence.
+# Re-pinned when _reroll_premiums() started consuming rng draws before the first
+# tile draw — the sequence shifts, determinism does not.
 func test_rack_draw_determinism() -> bool:
-	var expected = ["L", "A", "S", "O", "E", "E", "S", "M", "S", "O", "A", "R", "I", "A", "I", "G", "A", "F", "P", "D"]
+	var expected = ["H", "R", "X", "T", "T", "Q", "L", "R", "E", "L", "O", "I", "W", "B", "I", "T", "O", "P", "T", "H"]
 	var core = GameCore.new(12345)
 	var drawn = []
 	for _i in 20:
@@ -63,6 +72,7 @@ func test_rack_draw_distribution() -> bool:
 # TC4 - Scoring parity: word extraction and point calculation.
 func test_scoring_word_extraction() -> bool:
 	var core = GameCore.new(123)
+	_zero_premiums(core)
 	core.board[0][0] = "C"
 	core.board[1][0] = "A"
 	core.board[2][0] = "T"
@@ -210,6 +220,7 @@ func test_modifier_promotion_picks_lowest() -> bool:
 # TC11 - Modifier scoring doubles letter contribution.
 func test_modifier_scoring_doubles_letter() -> bool:
 	var core = GameCore.new(200)
+	_zero_premiums(core)
 	# Place CAT horizontally: C=3, A=1, T=1
 	core.board[0][0] = "C"
 	core.board[1][0] = "A"
@@ -235,6 +246,7 @@ func test_invalid_word_scores_zero() -> bool:
 			push_error("TC12: '%s' is in dictionary — invalidates this test case" % w)
 			return false
 	var core = GameCore.new(300)
+	_zero_premiums(core)
 	core.board[0][0] = "Z"
 	core.board[1][0] = "Q"
 	core.board[2][0] = "X"
@@ -248,6 +260,7 @@ func test_invalid_word_scores_zero() -> bool:
 # TC13 - Modifier doubles in both directions when the tile is in a cross.
 func test_modifier_doubles_in_cross() -> bool:
 	var core = GameCore.new(400)
+	_zero_premiums(core)
 	# Cross of two valid words sharing A at (2,2) with MOD_2X:
 	#   A(2,2)* T(3,2)  — horizontal "AT"
 	#   A(2,2)* S(2,3)  — vertical   "AS"
@@ -287,6 +300,106 @@ func test_modifier_survives_lock_and_clears() -> bool:
 		for y in GameCore.BOARD_SIZE:
 			if core.board_modifiers[x][y] != GameCore.MOD_NONE:
 				push_error("TC14: board_modifiers[%d][%d] not MOD_NONE after clear_board()" % [x, y])
+				return false
+	return true
+
+# TC15 - Premium TL doubles then triples the letter, matching the sim's DL/TL math.
+func test_premium_tl_letter_math() -> bool:
+	var core = GameCore.new(123)
+	_zero_premiums(core)
+	core.board[0][0] = "C"
+	core.board[1][0] = "A"
+	core.board[2][0] = "T"
+	core.board_premiums[0][0] = GameCore.PREM_TL
+	var score = core._calculate_turn_score([Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0)])
+	# AT  = (1+1)*2 = 4
+	# CAT = (3*3 + 1 + 1)*2 = 22
+	# total = 26
+	if score != 26:
+		push_error("TC15: expected 26 for CAT with C=PREM_TL, got %d" % score)
+		return false
+	return true
+
+# TC16 - Premium TW triples every word sharing the cell (word bonus applies after sum).
+func test_premium_tw_word_math() -> bool:
+	var core = GameCore.new(123)
+	_zero_premiums(core)
+	core.board[0][0] = "C"
+	core.board[1][0] = "A"
+	core.board[2][0] = "T"
+	core.board_premiums[1][0] = GameCore.PREM_TW
+	var score = core._calculate_turn_score([Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0)])
+	# AT  = (1+1)*2*3 = 12
+	# CAT = (3+1+1)*2*3 = 30
+	# total = 42
+	if score != 42:
+		push_error("TC16: expected 42 for CAT with A=PREM_TW, got %d" % score)
+		return false
+	return true
+
+# TC17 - Tile MOD_2X and cell PREM_DL stack: tile mod applies before the letter premium.
+func test_premium_stacking_mod_and_dl() -> bool:
+	var core = GameCore.new(123)
+	_zero_premiums(core)
+	core.board[0][0] = "C"
+	core.board[1][0] = "A"
+	core.board[2][0] = "T"
+	core.board_modifiers[0][0] = GameCore.MOD_2X
+	core.board_premiums[0][0] = GameCore.PREM_DL
+	var score = core._calculate_turn_score([Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0)])
+	# C = 3*2*2 = 12
+	# AT  = (1+1)*2 = 4
+	# CAT = (12+1+1)*2 = 28
+	# total = 32
+	if score != 32:
+		push_error("TC17: expected 32 for CAT with C=MOD_2X+PREM_DL, got %d" % score)
+		return false
+	return true
+
+# TC18 - Premium reroll is seed-deterministic; exactly 8 of 64 cells are non-PREM_NONE.
+func test_premium_reroll_determinism() -> bool:
+	var core_a = GameCore.new(42)
+	var core_b = GameCore.new(42)
+	var non_none_count := 0
+	for x in GameCore.BOARD_SIZE:
+		for y in GameCore.BOARD_SIZE:
+			if core_a.board_premiums[x][y] != core_b.board_premiums[x][y]:
+				push_error("TC18: premium layouts diverged at (%d,%d) for same seed" % [x, y])
+				return false
+			if core_a.board_premiums[x][y] != GameCore.PREM_NONE:
+				non_none_count += 1
+	if non_none_count != 8:
+		push_error("TC18: expected 8 non-PREM_NONE cells, got %d" % non_none_count)
+		return false
+	return true
+
+# TC19 - Premiums persist through tile placement; clear_board() rerolls to match a same-seed twin.
+func test_premium_persistence_and_reroll() -> bool:
+	var core = GameCore.new(1000)
+	var twin = GameCore.new(1000)
+	var prem_pos := Vector2i(-1, -1)
+	for x in GameCore.BOARD_SIZE:
+		for y in GameCore.BOARD_SIZE:
+			if core.board_premiums[x][y] != GameCore.PREM_NONE:
+				prem_pos = Vector2i(x, y)
+	if prem_pos.x < 0:
+		push_error("TC19: no premium cell found")
+		return false
+	var before: String = core.board_premiums[prem_pos.x][prem_pos.y]
+	core.place_pending_tile({"letter": "A", "modifier": GameCore.MOD_NONE}, prem_pos)
+	if core.board_premiums[prem_pos.x][prem_pos.y] != before:
+		push_error("TC19: placing a tile mutated board_premiums")
+		return false
+
+	core.clear_board()
+	twin.clear_board()
+	for x in GameCore.BOARD_SIZE:
+		for y in GameCore.BOARD_SIZE:
+			if core.board[x][y] != "" or core.board_modifiers[x][y] != GameCore.MOD_NONE:
+				push_error("TC19: clear_board left stale letter/modifier at (%d,%d)" % [x, y])
+				return false
+			if core.board_premiums[x][y] != twin.board_premiums[x][y]:
+				push_error("TC19: post-clear premium layout diverged from same-seed twin at (%d,%d)" % [x, y])
 				return false
 	return true
 

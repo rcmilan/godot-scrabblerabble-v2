@@ -21,6 +21,13 @@ const MOD_NONE: String = ""
 const MOD_2X:   String = "2x"
 const MOD_3X:   String = "3x"
 
+const PREM_NONE: String = ""
+const PREM_DL:   String = "dl"
+const PREM_TL:   String = "tl"
+const PREM_DW:   String = "dw"
+const PREM_TW:   String = "tw"
+const PREMIUM_COUNTS := {PREM_DL: 3, PREM_TL: 2, PREM_DW: 2, PREM_TW: 1}
+
 # Letter distribution and points (from GameData, embedded here for headless mode)
 const LETTER_DISTRIBUTION = {
 	"A": 9, "B": 2, "C": 2, "D": 4, "E": 12, "F": 2, "G": 3,
@@ -66,6 +73,8 @@ static func is_valid_word(text: String) -> bool:
 var board: Array = []
 # Parallel modifier state: same shape as board, default MOD_NONE.
 var board_modifiers: Array = []
+# Parallel premium-cell state: same shape as board, default PREM_NONE.
+var board_premiums: Array = []
 
 # Rack: each entry is {"letter": String, "modifier": String}.
 var rack: Array = []
@@ -103,14 +112,42 @@ func _init_board() -> void:
 	board.resize(BOARD_SIZE)
 	board_modifiers.clear()
 	board_modifiers.resize(BOARD_SIZE)
+	board_premiums.clear()
+	board_premiums.resize(BOARD_SIZE)
 	for x in BOARD_SIZE:
 		board[x] = []
 		board[x].resize(BOARD_SIZE)
 		board_modifiers[x] = []
 		board_modifiers[x].resize(BOARD_SIZE)
+		board_premiums[x] = []
+		board_premiums[x].resize(BOARD_SIZE)
 		for y in BOARD_SIZE:
 			board[x][y] = ""
 			board_modifiers[x][y] = MOD_NONE
+			board_premiums[x][y] = PREM_NONE
+	_reroll_premiums()
+
+# Hand-rolled Fisher-Yates on self.rng — Array.shuffle() uses the global RNG
+# and would break seed determinism (TC18).
+func _reroll_premiums() -> void:
+	for x in BOARD_SIZE:
+		for y in BOARD_SIZE:
+			board_premiums[x][y] = PREM_NONE
+	var positions: Array[Vector2i] = []
+	for x in BOARD_SIZE:
+		for y in BOARD_SIZE:
+			positions.append(Vector2i(x, y))
+	for i in range(positions.size() - 1, 0, -1):
+		var j := rng.randi() % (i + 1)
+		var tmp: Vector2i = positions[i]
+		positions[i] = positions[j]
+		positions[j] = tmp
+	var idx := 0
+	for prem in PREMIUM_COUNTS.keys():
+		for _n in PREMIUM_COUNTS[prem]:
+			var pos: Vector2i = positions[idx]
+			board_premiums[pos.x][pos.y] = prem
+			idx += 1
 
 func _draw_letter_raw() -> String:
 	var bag: Array[String] = []
@@ -305,6 +342,7 @@ func _board_runs() -> Array:
 
 func _score_word_sim(w: Dictionary) -> int:
 	var word_points := 0
+	var word_mult := 1
 	for i in (w.text as String).length():
 		var ch: String = (w.text as String)[i]
 		var cell_pos: Vector2i = w.cells[i]
@@ -314,8 +352,18 @@ func _score_word_sim(w: Dictionary) -> int:
 			letter_pts *= 2
 		elif mod == MOD_3X:
 			letter_pts *= 3
+		var prem: String = board_premiums[cell_pos.x][cell_pos.y]
+		if prem == PREM_DL:
+			letter_pts *= 2
+		elif prem == PREM_TL:
+			letter_pts *= 3
+		elif prem == PREM_DW:
+			word_mult *= 2
+		elif prem == PREM_TW:
+			word_mult *= 3
 		word_points += letter_pts
 	word_points *= WORD_BONUS_MULTIPLIER
+	word_points *= word_mult
 	return word_points
 
 func _extract_word_in_direction(pos: Vector2i, dir: Vector2i) -> Dictionary:
@@ -345,6 +393,8 @@ func clear_board() -> void:
 		for y in BOARD_SIZE:
 			board[x][y] = ""
 			board_modifiers[x][y] = MOD_NONE
+			board_premiums[x][y] = PREM_NONE
+	_reroll_premiums()
 
 func _generate_upgrade_offers() -> Array[Dictionary]:
 	var pool: Array[String] = []

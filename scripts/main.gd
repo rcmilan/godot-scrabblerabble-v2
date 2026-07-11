@@ -45,6 +45,7 @@ func _ready() -> void:
 	randomize()
 	end_turn_button.pressed.connect(_on_end_turn_pressed)
 	_nav.set_board(Vector2i(3, 3))
+	board.reroll_premiums()
 	board.focus_cell(cursor)
 	board.cell_focused.connect(_on_cell_focused)
 	board.cell_move_requested.connect(_on_cell_move_requested)
@@ -373,6 +374,7 @@ func _refresh_highlights() -> void:
 
 func _score_word(w: Dictionary) -> int:
 	var word_points := 0
+	var word_mult := 1
 	for i in (w.text as String).length():
 		var ch: String = (w.text as String)[i]
 		var cell: BoardCell = w.cells[i]
@@ -382,8 +384,17 @@ func _score_word(w: Dictionary) -> int:
 			letter_pts *= 2
 		elif mod == GameData.MOD_3X:
 			letter_pts *= 3
+		if cell.premium == GameData.PREM_DL:
+			letter_pts *= 2
+		elif cell.premium == GameData.PREM_TL:
+			letter_pts *= 3
+		elif cell.premium == GameData.PREM_DW:
+			word_mult *= 2
+		elif cell.premium == GameData.PREM_TW:
+			word_mult *= 3
 		word_points += letter_pts
 	word_points *= WORD_BONUS_MULTIPLIER
+	word_points *= word_mult
 	return word_points
 
 func _get_modifiers_str(w: Dictionary) -> String:
@@ -395,6 +406,8 @@ func _get_modifiers_str(w: Dictionary) -> String:
 			mods_parts.append("2x@%d" % i)
 		elif mod == GameData.MOD_3X:
 			mods_parts.append("3x@%d" % i)
+		if cell.premium != "":
+			mods_parts.append("%s@%d" % [cell.premium, i])
 	return ", ".join(mods_parts) if mods_parts.size() > 0 else "none"
 
 func _update_hud() -> void:
@@ -414,6 +427,7 @@ func _update_hud() -> void:
 func _on_round_won(round_num: int, _round_score: int, _target: int) -> void:
 	pending_cells.clear()
 	board.clear_all()
+	board.reroll_premiums()
 	var emitter: GPUParticles2D = GLITTER_SCENE.instantiate()
 	add_child(emitter)
 	emitter.global_position = board.global_position + board.size * 0.5

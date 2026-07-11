@@ -5,6 +5,13 @@ const MOD_NONE: String = ""
 const MOD_2X:   String = "2x"
 const MOD_3X:   String = "3x"
 
+const PREM_NONE: String = ""
+const PREM_DL:   String = "dl"
+const PREM_TL:   String = "tl"
+const PREM_DW:   String = "dw"
+const PREM_TW:   String = "tw"
+const PREMIUM_COUNTS := {PREM_DL: 3, PREM_TL: 2, PREM_DW: 2, PREM_TW: 1}
+
 # Standard Scrabble letter point values (English).
 const LETTER_POINTS: Dictionary = {
 	"A": 1, "B": 3, "C": 3, "D": 2, "E": 1, "F": 4, "G": 2,

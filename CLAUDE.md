@@ -57,8 +57,9 @@ length-2..8 substring of that run — each with the word bonus
   (`HELLO` = `HE` + `HELL` + `HELLO`).
 - **A run with no valid word scores 0.** There is no consolation
   bare-letter scoring — gibberish neither glows nor scores.
-- **Per-letter modifier (2×/3×) applies first, then the word bonus** — same
-  order in live and sim.
+- **Scoring order, deterministic and identical in live and sim:** tile
+  modifier (2×/3×) → cell letter premium (DL/TL) → word bonus → cell word
+  premiums (DW/TW).
 
 **Shared source of truth.** In `main.gd`:
 
@@ -106,6 +107,14 @@ See **Scoring & word highlight** for how words are found.
 can't be a `StyleBoxFlat`. Label colors are hardcoded constants
 (`C_LABEL_*`) — `get_theme_color_override` does not exist in Godot 4.6.1, so
 match the scene-file values in `_refresh_visual` / `_sync_label_color`.
+
+**Premium cells (DL/TL/DW/TW):** positional bonuses baked into board squares,
+randomized per round and rerolled on round win — `board.gd::reroll_premiums`
+mirrors `game_core.gd::_reroll_premiums`. Unlike tile modifiers, the bonus
+applies to whatever tile sits on that cell; persistence through lock and
+board wipe is by omission (`clear_pending()` / `lock_pending()` /
+`clear_all()` never touch `BoardCell.premium`). Tests: `TC15`–`TC19` in
+`scripts/sim/tests/test_game_core.gd`.
 
 **Sim parity:** `game_core.gd` mirrors the modifier system via
 `board_modifiers[x][y]` and the `MOD_NONE` / `MOD_2X` / `MOD_3X` constants.
