@@ -8,7 +8,7 @@ extends RefCounted
 # Progression constants (copied from RunState, main.gd, board.gd, rack.gd).
 const TURNS_PER_ROUND:        int = 3
 const INITIAL_TILES_PER_TURN: int = 4
-const INITIAL_TARGET_SCORE:   int = 22
+const INITIAL_TARGET_SCORE:   int = 28
 const ENDLESS_GROWTH:         float = 1.28
 const WORD_BONUS_MULTIPLIER:  int = 2
 const BOARD_SIZE:             int = 8

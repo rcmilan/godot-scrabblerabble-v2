@@ -50,6 +50,14 @@ Once the simulator is proven useful, refactor `main.gd` and `run_state.gd` to de
 
 Easy/Medium/Hard difficulty modes (with target tables, 5-round cap, `run_finished` signal, `total_score` tracking, and session high scores) are **live game only** and intentionally **NOT modeled in `game_core.gd`**. The simulator always runs Endless mode. This keeps the simulator focused on strategy evaluation under the classic unbounded curve and avoids duplicating high-score infrastructure.
 
+Consequence for tuning: `DIFFICULTY_TARGETS` cannot be measured directly. Retune it by scaling the tables by the score-inflation factor measured on the Endless curve (premium cells inflated scores ~20% uniformly across all 8 strategies → tables scaled ×1.27). The documented win rates (~80% Easy/Medium, ~65% Hard) therefore ride on that transfer and are not themselves simulated.
+
+## Retuning the Endless curve
+
+`target(r) = INITIAL_TARGET_SCORE × ENDLESS_GROWTH^(r-1)`, rounded to the nearest even number. To offset a scoring change, scale **`INITIAL_TARGET_SCORE`** — it scales the whole curve uniformly and preserves its shape. Do not reach for `ENDLESS_GROWTH`: it compounds, so it leaves early rounds soft while making late rounds unreachable.
+
+Method: sweep candidate values, run `--runs 200` across all strategies, and compare mean rounds against the pre-change baseline. Premium cells took it 22 → 28, which put `longest_word` (the expert benchmark) back on its pre-premium 11.3 mean rounds.
+
 ## Modifiers
 
 `game_core.gd` tracks a parallel board array `board_modifiers[x][y]` (same shape as `board`) alongside the letter grid. Each cell stores `MOD_NONE` (`""`) or `MOD_2X` (`"2x"`).

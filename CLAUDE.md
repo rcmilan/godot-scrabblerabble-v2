@@ -87,10 +87,24 @@ per-tile animated rainbow can't be expressed as either.
   the glow is a **live preview**; locked words stay lit until
   `board.clear_all()` on round win.
 
-**Retuning is an open follow-up.** Whole-board re-scoring inflates turn
-scores hard. `INITIAL_TARGET_SCORE` and the difficulty curve likely need
-retuning — measure with the simulator before picking numbers, and mirror any
-constant change into `game_core.gd`.
+**Retuning is measured, never guessed.** Whole-board re-scoring and premium
+cells both inflate turn scores hard, so `INITIAL_TARGET_SCORE` carries the
+correction — it was raised 22 → 28 when premiums landed, restoring the
+pre-premium survival curve (`longest_word` back to ~11.1 mean rounds from
+12.4; every strategy within ~0.5 of its old baseline). Method: the Endless
+curve is `target(r) = INITIAL_TARGET_SCORE × ENDLESS_GROWTH^(r-1)`, so scaling
+the **initial target** scales the whole curve uniformly and preserves its
+shape — raise it, not `ENDLESS_GROWTH`, which compounds and warps early vs
+late rounds. Sweep candidates through the simulator (200 runs × all
+strategies) and compare mean rounds against the previous baseline before
+picking a number. Mirror every constant change into `game_core.gd`, and
+expect `TC1` (constants) / `TC6` (target curve) / `TC7` (post-advance target)
+to need recomputing — they pin these values by hand.
+
+`DIFFICULTY_TARGETS` (Easy/Medium/Hard) is **live-only and not modeled in the
+sim** by design (see `scripts/sim/README.md`), so it can't be measured
+directly. It is scaled by the inflation factor measured on the Endless curve
+(×1.27 for premiums) to hold its documented win rates.
 
 ## Tile modifiers
 
