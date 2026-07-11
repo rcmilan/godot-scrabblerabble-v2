@@ -41,3 +41,20 @@ func clear_all() -> void:
 	for x in BOARD_SIZE:
 		for y in BOARD_SIZE:
 			(cells[x][y] as BoardCell).clear_all()
+
+func reroll_premiums() -> void:
+	for x in BOARD_SIZE:
+		for y in BOARD_SIZE:
+			(cells[x][y] as BoardCell).set_premium("")
+	var positions: Array[Vector2i] = []
+	for x in BOARD_SIZE:
+		for y in BOARD_SIZE:
+			positions.append(Vector2i(x, y))
+	positions.shuffle()
+	var i := 0
+	for prem in GameData.PREMIUM_COUNTS.keys():
+		for _n in GameData.PREMIUM_COUNTS[prem]:
+			var pos: Vector2i = positions[i]
+			(cells[pos.x][pos.y] as BoardCell).set_premium(prem)
+			i += 1
+	print("[Board] premiums rerolled — %d cells" % i)

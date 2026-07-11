@@ -11,6 +11,7 @@ var grid_pos:       Vector2i = Vector2i.ZERO
 var current_tile:   Tile     = null
 var locked_letter:  String   = ""
 var locked_modifier: String  = ""
+var premium:         String  = ""
 
 const C_OUTER_LIGHT := Color("#FFFFFF")
 const C_INNER_LIGHT := Color("#DFDFDF")
@@ -20,6 +21,10 @@ const C_CURSOR      := Color("#00FFFF")
 const C_BG_EMPTY    := Color("#C0C0C0")
 const C_BG_TILE     := Color("#FFFFC0")
 const CURSOR_PERIOD := 0.5
+
+const C_PREM_COLORS := {"dl": Color("#008080"), "tl": Color("#800080"),
+	"dw": Color("#808000"), "tw": Color("#800000")}
+const C_PREM_LABEL := Color(1, 1, 1, 1)
 
 const C_MOD_GRADIENT_LEFT    := Color(0.0,        0.0,         0.5019, 1.0)
 const C_MOD_GRADIENT_RIGHT   := Color(16.0/255.0, 132.0/255.0, 208.0/255.0, 1.0)
@@ -82,6 +87,10 @@ func set_highlighted(on: bool) -> void:
 	highlighted = on
 	queue_redraw()
 
+func set_premium(p: String) -> void:
+	premium = p
+	queue_redraw()
+
 func _process(delta: float) -> void:
 	if highlighted:
 		queue_redraw()  # drive the rainbow sweep while the cell is in a word
@@ -104,6 +113,8 @@ func _draw() -> void:
 		_draw_horizontal_gradient(Rect2(0, 0, w, h), C_MOD_GRADIENT_LEFT, C_MOD_GRADIENT_RIGHT)
 	elif filled and active_mod == GameData.MOD_3X:
 		_draw_horizontal_gradient(Rect2(0, 0, w, h), C_MOD3X_GRADIENT_LEFT, C_MOD3X_GRADIENT_RIGHT)
+	elif not filled and premium != "":
+		draw_rect(Rect2(0, 0, w, h), C_PREM_COLORS[premium])
 	else:
 		draw_rect(Rect2(0, 0, w, h), C_BG_TILE if filled else C_BG_EMPTY)
 
@@ -127,6 +138,13 @@ func _draw() -> void:
 		draw_line(Vector2(1, h - 2), Vector2(w - 2, h - 2), C_INNER_LIGHT)
 		draw_line(Vector2(w - 1, 0), Vector2(w - 1, h - 1), C_OUTER_LIGHT)
 		draw_line(Vector2(0, h - 1), Vector2(w - 1, h - 1), C_OUTER_LIGHT)
+		if premium != "":
+			draw_string(get_theme_default_font(), Vector2(w * 0.5 - 10.0, h * 0.5 + 4.0),
+				premium.to_upper(), HORIZONTAL_ALIGNMENT_CENTER, 20.0, 12, C_PREM_LABEL)
+
+	if filled and premium != "":
+		draw_colored_polygon(
+			[Vector2(w - 13, 3), Vector2(w - 3, 3), Vector2(w - 3, 13)], C_PREM_COLORS[premium])
 
 	if has_focus():
 		draw_rect(Rect2(0, 0, w, h),         C_CURSOR,     false)  # outer cyan ring

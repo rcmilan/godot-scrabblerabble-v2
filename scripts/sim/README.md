@@ -50,6 +50,14 @@ Once the simulator is proven useful, refactor `main.gd` and `run_state.gd` to de
 
 Easy/Medium/Hard difficulty modes (with target tables, 5-round cap, `run_finished` signal, `total_score` tracking, and session high scores) are **live game only** and intentionally **NOT modeled in `game_core.gd`**. The simulator always runs Endless mode. This keeps the simulator focused on strategy evaluation under the classic unbounded curve and avoids duplicating high-score infrastructure.
 
+Consequence for tuning: `DIFFICULTY_TARGETS` cannot be measured directly. Retune it by scaling the tables by the score-inflation factor measured on the Endless curve (premium cells inflated scores ~20% uniformly across all 8 strategies → tables scaled ×1.27). The documented win rates (~80% Easy/Medium, ~65% Hard) therefore ride on that transfer and are not themselves simulated.
+
+## Retuning the Endless curve
+
+`target(r) = INITIAL_TARGET_SCORE × ENDLESS_GROWTH^(r-1)`, rounded to the nearest even number. To offset a scoring change, scale **`INITIAL_TARGET_SCORE`** — it scales the whole curve uniformly and preserves its shape. Do not reach for `ENDLESS_GROWTH`: it compounds, so it leaves early rounds soft while making late rounds unreachable.
+
+Method: sweep candidate values, run `--runs 200` across all strategies, and compare mean rounds against the pre-change baseline. Premium cells took it 22 → 28, which put `longest_word` (the expert benchmark) back on its pre-premium 11.3 mean rounds.
+
 ## Modifiers
 
 `game_core.gd` tracks a parallel board array `board_modifiers[x][y]` (same shape as `board`) alongside the letter grid. Each cell stores `MOD_NONE` (`""`) or `MOD_2X` (`"2x"`).
@@ -58,7 +66,7 @@ Easy/Medium/Hard difficulty modes (with target tables, 5-round cap, `run_finishe
 
 **Rack shape:** `rack` is now `Array` of `{"letter": String, "modifier": String}` dicts instead of `Array[String]`. Use `rack_letters()` wherever strategies or tests need plain letter strings. The helper `draw_tile()` always produces `MOD_NONE`; `_ensure_modifier_in_rack(MOD_2X)` promotes one tile per refill.
 
-**Scoring:** `_calculate_turn_score` reads `board_modifiers` per cell when summing letter points. Letter modifier applies first, then the word bonus — the same order as the live game. Tie scoring changes in `main.gd` and `game_core.gd` together; they are the same calculation in both files.
+**Scoring:** `_calculate_turn_score` reads `board_modifiers` and `board_premiums` per cell when summing letter points. Order, identical to the live game: tile modifier (2×/3×) → cell letter premium (DL/TL) → word bonus → cell word premiums (DW/TW). Tie scoring changes in `main.gd` and `game_core.gd` together; they are the same calculation in both files.
 
 **Drift risk:** If `_ensure_modifier_in_rack`, `board_modifiers`, or the modifier constants change in either `game_core.gd` or the live files (`rack.gd`, `board_cell.gd`, `game_data.gd`), update the counterpart immediately or sim parity will silently diverge. Test coverage: TSM1–TSM6 verify modifier guarantee, promotion ordering, scoring with modifiers, and determinism.
 
