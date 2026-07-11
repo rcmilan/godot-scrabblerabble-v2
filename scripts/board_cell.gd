@@ -30,6 +30,11 @@ const C_MOD_GRADIENT_LEFT    := Color(0.0,        0.0,         0.5019, 1.0)
 const C_MOD_GRADIENT_RIGHT   := Color(16.0/255.0, 132.0/255.0, 208.0/255.0, 1.0)
 const C_MOD3X_GRADIENT_LEFT  := Color(0.0,        0.376, 0.0,   1.0)
 const C_MOD3X_GRADIENT_RIGHT := Color(0.188,       0.753, 0.188, 1.0)
+const C_WORD2X_GRADIENT_LEFT  := Color(0.4,  0.0,  0.4,  1.0)
+const C_WORD2X_GRADIENT_RIGHT := Color(0.72, 0.33, 0.72, 1.0)
+const C_WORD3X_GRADIENT_LEFT  := Color(0.55, 0.27, 0.0,  1.0)
+const C_WORD3X_GRADIENT_RIGHT := Color(1.0,  0.65, 0.0,  1.0)
+const C_WILD_BODY             := Color(0.75, 0.75, 0.75, 1.0)
 
 var _cursor_visible := true
 var _cursor_timer   := 0.0
@@ -113,6 +118,12 @@ func _draw() -> void:
 		_draw_horizontal_gradient(Rect2(0, 0, w, h), C_MOD_GRADIENT_LEFT, C_MOD_GRADIENT_RIGHT)
 	elif filled and active_mod == GameData.MOD_3X:
 		_draw_horizontal_gradient(Rect2(0, 0, w, h), C_MOD3X_GRADIENT_LEFT, C_MOD3X_GRADIENT_RIGHT)
+	elif filled and active_mod == GameData.MOD_WORD_2X:
+		_draw_horizontal_gradient(Rect2(0, 0, w, h), C_WORD2X_GRADIENT_LEFT, C_WORD2X_GRADIENT_RIGHT)
+	elif filled and active_mod == GameData.MOD_WORD_3X:
+		_draw_horizontal_gradient(Rect2(0, 0, w, h), C_WORD3X_GRADIENT_LEFT, C_WORD3X_GRADIENT_RIGHT)
+	elif filled and active_mod == GameData.MOD_WILD:
+		draw_rect(Rect2(0, 0, w, h), C_WILD_BODY)
 	elif not filled and premium != "":
 		draw_rect(Rect2(0, 0, w, h), C_PREM_COLORS[premium])
 	else:
@@ -176,7 +187,8 @@ func _draw_horizontal_gradient(rect: Rect2, c0: Color, c1: Color) -> void:
 
 func _sync_label_color() -> void:
 	var mod := get_modifier()
-	if mod == GameData.MOD_2X or mod == GameData.MOD_3X:
+	if mod == GameData.MOD_2X or mod == GameData.MOD_3X \
+			or mod == GameData.MOD_WORD_2X or mod == GameData.MOD_WORD_3X:
 		label.add_theme_color_override("font_color", Color.WHITE)
 	else:
 		label.remove_theme_color_override("font_color")

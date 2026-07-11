@@ -53,7 +53,7 @@ func _draw() -> void:
 	if is_selected:
 		draw_rect(tile_rect.grow(2.0), C_SELECTION_BORDER, false, 2.0)
 	var font := get_theme_default_font()
-	if font:
+	if font and modifier != GameData.MOD_WILD:
 		var bag_count: int = GameData.LETTER_DISTRIBUTION.get(letter, 0)
 		var bag_text := "%d in bag" % bag_count
 		var font_size_bag := 12

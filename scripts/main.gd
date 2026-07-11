@@ -20,6 +20,16 @@ const DISCARD_WORD_SEARCH_STRATEGY := preload("res://scripts/sim/strategies/disc
 const AUTOPLAY_STEP_MS: int = 200
 const UPGRADE_OFFER_COUNT: int = 3
 
+const MODIFIER_WEIGHTS := {
+	GameData.MOD_2X: 40, GameData.MOD_3X: 20, GameData.MOD_WORD_2X: 20,
+	GameData.MOD_WORD_3X: 10, GameData.MOD_WILD: 10,
+}
+# ponytail: first-guess weights, mirrors game_core.gd — retune with the
+# simulator alongside INITIAL_TARGET_SCORE if word-mults dominate every run.
+
+const TYPICAL_WORD_POINTS: int = 12
+const WILD_OFFER_VALUE: int = 60
+
 var _autoplay_active: bool = false
 var _discard_busy: bool = false
 var _anim_layer: CanvasLayer
@@ -209,6 +219,10 @@ func discard_rack_tile(tile: Tile) -> void:
 	if RunState.is_game_over or RunState.is_transitioning or RunState.is_upgrading: return
 	if RunState.discards_left <= 0: return
 	if not rack.tiles_in_hand.has(tile): return
+	# Too valuable to spend on a reroll; game_core.gd::discard_tile guards the same.
+	if tile.modifier == GameData.MOD_WILD:
+		print("[Discard] wildcard held — not discardable")
+		return
 	var start := tile.global_position
 	var result := rack.discard_replace(tile)
 	if result.is_empty(): return
@@ -312,6 +326,41 @@ func _calculate_turn_score() -> int:
 		total += word_points
 	return total
 
+# Same sum as _calculate_turn_score but silent — _resolve_wildcards calls this
+# 26 times per blank while searching for the best letter, and the real
+# end-of-turn scoring above is the only path allowed to print [Turn] lines.
+func _score_board_silent() -> int:
+	var total := 0
+	for w in _collect_scoring_words():
+		total += _score_word(w)
+	return total
+
+# Mirror of game_core.gd::_resolve_wildcards against live nodes. Locked wilds
+# (current_tile == null, letter frozen in locked_letter at lock_pending()) are
+# never re-resolved — see CLAUDE.md "Controls" for the current_tile gate.
+func _resolve_wildcards() -> void:
+	for x in Board.BOARD_SIZE:
+		for y in Board.BOARD_SIZE:
+			var cell: BoardCell = board.cells[x][y]
+			if cell.get_modifier() != GameData.MOD_WILD:
+				continue
+			if cell.current_tile == null:
+				continue
+			var prev_letter := cell.current_tile.letter
+			var best_letter := "A"
+			var best_score := -1
+			for i in 26:
+				var letter: String = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[i]
+				cell.current_tile.set_letter(letter)
+				var score := _score_board_silent()
+				if score > best_score:
+					best_score = score
+					best_letter = letter
+			cell.current_tile.set_letter(best_letter)
+			cell.label.text = best_letter
+			if prev_letter != best_letter:
+				print("[Wild] resolved %s -> %s" % [cell.grid_pos, best_letter])
+
 # Every valid (length >= 2) substring of every maximal run on the board.
 func _collect_scoring_words() -> Array:
 	var words: Array = []
@@ -380,10 +429,16 @@ func _score_word(w: Dictionary) -> int:
 		var cell: BoardCell = w.cells[i]
 		var letter_pts: int = GameData.score_for_letter(ch)
 		var mod := cell.get_modifier()
-		if mod == GameData.MOD_2X:
+		if mod == GameData.MOD_WILD:
+			letter_pts = 0
+		elif mod == GameData.MOD_2X:
 			letter_pts *= 2
 		elif mod == GameData.MOD_3X:
 			letter_pts *= 3
+		elif mod == GameData.MOD_WORD_2X:
+			word_mult *= 2
+		elif mod == GameData.MOD_WORD_3X:
+			word_mult *= 3
 		if cell.premium == GameData.PREM_DL:
 			letter_pts *= 2
 		elif cell.premium == GameData.PREM_TL:
@@ -406,11 +461,18 @@ func _get_modifiers_str(w: Dictionary) -> String:
 			mods_parts.append("2x@%d" % i)
 		elif mod == GameData.MOD_3X:
 			mods_parts.append("3x@%d" % i)
+		elif mod == GameData.MOD_WORD_2X:
+			mods_parts.append("w2x@%d" % i)
+		elif mod == GameData.MOD_WORD_3X:
+			mods_parts.append("w3x@%d" % i)
+		elif mod == GameData.MOD_WILD:
+			mods_parts.append("wild@%d" % i)
 		if cell.premium != "":
 			mods_parts.append("%s@%d" % [cell.premium, i])
 	return ", ".join(mods_parts) if mods_parts.size() > 0 else "none"
 
 func _update_hud() -> void:
+	_resolve_wildcards()
 	var round_str: String
 	if RunState.is_difficulty_mode():
 		round_str = "Round %d / 5" % RunState.current_round
@@ -460,7 +522,10 @@ func _show_upgrade_dialog() -> void:
 	dialog.focus_first()
 
 	dialog.upgrade_picked.connect(func(offer: Dictionary) -> void:
-		RunState.set_letter_modifier(offer["letter"], offer["modifier"])
+		if offer["modifier"] == GameData.MOD_WILD:
+			RunState.add_to_build(GameData.MOD_WILD)
+		else:
+			RunState.set_letter_modifier(offer["letter"], offer["modifier"])
 		rack.refill()
 		layer.queue_free()
 		RunState.is_upgrading = false
@@ -476,6 +541,18 @@ func _show_upgrade_dialog() -> void:
 	if _autoplay_active:
 		_autoplay_pick_upgrade_dialog(dialog, offers)
 
+func _roll_modifier() -> String:
+	var total := 0
+	for w in MODIFIER_WEIGHTS.values():
+		total += w
+	var r := randi() % total
+	var acc := 0
+	for mod in MODIFIER_WEIGHTS.keys():
+		acc += MODIFIER_WEIGHTS[mod]
+		if r < acc:
+			return mod
+	return GameData.MOD_2X
+
 func _generate_upgrade_offers() -> Array[Dictionary]:
 	var pool: Array[String] = []
 	for letter in GameData.LETTER_DISTRIBUTION:
@@ -489,14 +566,23 @@ func _generate_upgrade_offers() -> Array[Dictionary]:
 	for letter in GameData.LETTER_DISTRIBUTION:
 		if not RunState.letter_modifiers.has(letter):
 			distinct_count += 1
+	var wild_offered := false
 	while offers.size() < UPGRADE_OFFER_COUNT and not pool.is_empty():
 		if picked.size() >= distinct_count:
 			break
+		var mod := _roll_modifier()
+		if mod == GameData.MOD_WILD:
+			if wild_offered:
+				while mod == GameData.MOD_WILD:
+					mod = _roll_modifier()
+			else:
+				wild_offered = true
+				offers.append({"letter": "?", "modifier": GameData.MOD_WILD})
+				continue
 		var letter: String = pool[randi() % pool.size()]
 		if picked.has(letter):
 			continue
 		picked.append(letter)
-		var mod: String = GameData.MOD_3X if randi() % 3 == 0 else GameData.MOD_2X
 		offers.append({"letter": letter, "modifier": mod})
 	if offers.size() < UPGRADE_OFFER_COUNT:
 		print("[UpgradeWizard] letter pool exhausted — offering %d" % offers.size())
@@ -514,8 +600,16 @@ func _autoplay_pick_upgrade_dialog(dialog: UpgradeDialog, offers: Array[Dictiona
 	dialog.upgrade_picked.emit(best)
 
 func _offer_value(offer: Dictionary) -> int:
-	var mult := 3 if offer["modifier"] == GameData.MOD_3X else 2
-	return GameData.LETTER_DISTRIBUTION[offer["letter"]] * GameData.LETTER_POINTS[offer["letter"]] * mult
+	var mod: String = offer["modifier"]
+	if mod == GameData.MOD_WILD:
+		return WILD_OFFER_VALUE
+	var letter: String = offer["letter"]
+	var dist: int = GameData.LETTER_DISTRIBUTION[letter]
+	if mod == GameData.MOD_WORD_2X or mod == GameData.MOD_WORD_3X:
+		var wm := 3 if mod == GameData.MOD_WORD_3X else 2
+		return dist * TYPICAL_WORD_POINTS * (wm - 1)
+	var lm := 3 if mod == GameData.MOD_3X else 2
+	return dist * GameData.LETTER_POINTS[letter] * (lm - 1)
 
 func _autoplay_quit_game_over(dialog: Panel) -> void:
 	await get_tree().create_timer(1.0).timeout

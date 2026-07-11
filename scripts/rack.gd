@@ -96,10 +96,17 @@ func remove_tile(tile: Tile) -> void:
 	if tile.get_parent() == self:
 		remove_child(tile)
 
+# A blank is a fallback, not a substitute: play the real letter when the rack has
+# one and spend the wildcard only when it doesn't. Skipping wilds outright would
+# leave no route to ever place one — this is the only tile-by-letter lookup the
+# keyboard and autoplay both use. Mirrors game_core.gd::_find_rack_index_for_letter.
 func find_tile_with_letter(letter: String) -> Tile:
 	var up := letter.to_upper()
 	for t in tiles_in_hand:
-		if t.letter == up:
+		if t.letter == up and t.modifier != GameData.MOD_WILD:
+			return t
+	for t in tiles_in_hand:
+		if t.modifier == GameData.MOD_WILD:
 			return t
 	return null
 

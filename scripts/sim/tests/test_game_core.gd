@@ -18,8 +18,8 @@ func test_constants_parity() -> bool:
 	if GameCore.INITIAL_TILES_PER_TURN != 4:
 		push_error("INITIAL_TILES_PER_TURN: expected 4, got %d" % GameCore.INITIAL_TILES_PER_TURN)
 		return false
-	if GameCore.INITIAL_TARGET_SCORE != 28:
-		push_error("INITIAL_TARGET_SCORE: expected 28, got %d" % GameCore.INITIAL_TARGET_SCORE)
+	if GameCore.INITIAL_TARGET_SCORE != 32:
+		push_error("INITIAL_TARGET_SCORE: expected 32, got %d" % GameCore.INITIAL_TARGET_SCORE)
 		return false
 	if GameCore.WORD_BONUS_MULTIPLIER != 2:
 		push_error("WORD_BONUS_MULTIPLIER: expected 2, got %d" % GameCore.WORD_BONUS_MULTIPLIER)
@@ -115,7 +115,7 @@ func test_cross_word_skip_length_one() -> bool:
 # TC6 - Target curve parity: rounds 1-4 produce expected target sequence.
 func test_target_curve_parity() -> bool:
 	var core = GameCore.new(999)
-	var expected_targets = [28, 36, 46, 58]
+	var expected_targets = [32, 40, 52, 68]
 
 	for round_num in range(4):
 		if core.target_score != expected_targets[round_num]:
@@ -141,12 +141,12 @@ func test_round_advance_ordering() -> bool:
 	core.turns_left = 1
 	core._advance_round()
 
-	# After advance: round 2, target 36, turns_left 3, tiles_per_turn 5
+	# After advance: round 2, target 40, turns_left 3, tiles_per_turn 5
 	if core.current_round != 2:
 		push_error("Round didn't advance")
 		return false
-	if core.target_score != 36:
-		push_error("Target should be 36, got %d" % core.target_score)
+	if core.target_score != 40:
+		push_error("Target should be 40, got %d" % core.target_score)
 		return false
 	if core.turns_left != 3:
 		push_error("Turns should reset to 3, got %d" % core.turns_left)
@@ -403,6 +403,142 @@ func test_premium_persistence_and_reroll() -> bool:
 				return false
 	return true
 
+# TC20 - Word multiplier doubles the whole run it touches, not others.
+func test_word_mult_doubles_run() -> bool:
+	var core = GameCore.new(123)
+	_zero_premiums(core)
+	core.board[0][0] = "C"
+	core.board[1][0] = "A"
+	core.board[2][0] = "T"
+	core.board_modifiers[0][0] = GameCore.MOD_WORD_2X
+	var score = core._calculate_turn_score([Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0)])
+	# AT  = (1+1)*2 = 4                      (C's word-mult isn't in AT's run)
+	# CAT = (3+1+1)*2*2 = 20
+	# total = 24
+	if score != 24:
+		push_error("TC20: expected 24 for CAT with C=MOD_WORD_2X, got %d" % score)
+		return false
+	return true
+
+# TC21 - Two word-mult tiles in one run multiply (x2 * x2 = x4).
+func test_word_mult_stacks_multiplicatively() -> bool:
+	var core = GameCore.new(123)
+	_zero_premiums(core)
+	core.board[0][0] = "C"
+	core.board[1][0] = "A"
+	core.board[2][0] = "T"
+	core.board_modifiers[0][0] = GameCore.MOD_WORD_2X
+	core.board_modifiers[2][0] = GameCore.MOD_WORD_2X
+	var score = core._calculate_turn_score([Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0)])
+	# AT  = (1+1)*2*2 = 8     (T's word-mult is in AT's run)
+	# CAT = (3+1+1)*2*2*2 = 40
+	# total = 48
+	if score != 48:
+		push_error("TC21: expected 48 for CAT with C,T=MOD_WORD_2X, got %d" % score)
+		return false
+	return true
+
+# TC22 - A MOD_WILD tile scores 0 for its slot but the word still validates/scores.
+func test_wildcard_scores_zero_for_slot() -> bool:
+	var core = GameCore.new(123)
+	_zero_premiums(core)
+	core.board[0][0] = "C"
+	core.board[1][0] = "A"
+	core.board[2][0] = "T"
+	core.board_modifiers[1][0] = GameCore.MOD_WILD
+	var score = core._calculate_turn_score([Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0)])
+	# AT  = (0+1)*2 = 2   (A is the wild, worth 0)
+	# CAT = (3+0+1)*2 = 8
+	# total = 10  (vs. 14 with a real A)
+	if score != 10:
+		push_error("TC22: expected 10 for CAT with wild A, got %d" % score)
+		return false
+	return true
+
+# TC23 - A word-mult tile and a PREM_DW cell multiply into the same accumulator.
+func test_word_mult_stacks_with_premium_dw() -> bool:
+	var core = GameCore.new(123)
+	_zero_premiums(core)
+	core.board[0][0] = "C"
+	core.board[1][0] = "A"
+	core.board[2][0] = "T"
+	core.board_modifiers[0][0] = GameCore.MOD_WORD_2X
+	core.board_premiums[1][0] = GameCore.PREM_DW
+	var score = core._calculate_turn_score([Vector2i(0, 0), Vector2i(1, 0), Vector2i(2, 0)])
+	# AT  = (1+1) * 2(bonus) * 2(DW on A) = 8      (C's word-mult isn't in AT's run)
+	# CAT = (3+1+1) * 2(bonus) * 2(DW) * 2(word-mult) = 5 * 8 = 40
+	# total = 48
+	if score != 48:
+		push_error("TC23: expected 48 for CAT with C=MOD_WORD_2X + A=PREM_DW, got %d" % score)
+		return false
+	return true
+
+# TC24 - _resolve_wildcards picks the score-maximizing letter, alphabetical on
+# ties, deterministically.
+func test_resolve_wildcards_maximizes() -> bool:
+	var core = GameCore.new(123)
+	_zero_premiums(core)
+	core.board[0][0] = "C"
+	core.board[2][0] = "T"
+	core.board_modifiers[1][0] = GameCore.MOD_WILD
+	core._resolve_wildcards()
+	if core.board[1][0] != "A":
+		push_error("TC24: expected wild between C/T to resolve to 'A', got '%s'" % core.board[1][0])
+		return false
+
+	var core_b = GameCore.new(123)
+	_zero_premiums(core_b)
+	core_b.board[0][0] = "C"
+	core_b.board[2][0] = "T"
+	core_b.board_modifiers[1][0] = GameCore.MOD_WILD
+	core_b._resolve_wildcards()
+	if core_b.board[1][0] != core.board[1][0]:
+		push_error("TC24: resolution not stable across two identical cores")
+		return false
+
+	var core_c = GameCore.new(123)
+	_zero_premiums(core_c)
+	core_c.board_modifiers[4][4] = GameCore.MOD_WILD
+	core_c._resolve_wildcards()
+	if core_c.board[4][4] != "A":
+		push_error("TC24: isolated wild (all letters score 0) should resolve to 'A', got '%s'" % core_c.board[4][4])
+		return false
+
+	return true
+
+# TC25 - A resolved wildcard is frozen: later turns never re-optimise it, even
+# when the growing board would make a different letter strictly better. Mirrors
+# the live lock (a locked blank has current_tile == null and is skipped).
+func test_resolved_wildcard_is_frozen() -> bool:
+	var core = GameCore.new(123)
+	_zero_premiums(core)
+	core.board[0][0] = "C"
+	core.board[2][0] = "T"
+	core.board_modifiers[1][0] = GameCore.MOD_WILD
+	core._resolve_wildcards()
+	if core.board[1][0] != "A":
+		push_error("TC25: first wild should resolve to 'A' (CAT), got '%s'" % core.board[1][0])
+		return false
+
+	# Grow the board so column x=1 becomes "?AX": _AX words (FAX/TAX/WAX...) score
+	# 36 there versus ~30 for 'A', so an unfrozen wild WOULD move off 'A'.
+	core.board[1][1] = "A"
+	core.board[1][2] = "X"
+	# A second, unplayed wild that must still resolve.
+	core.board[3][4] = "C"
+	core.board[5][4] = "T"
+	core.board_modifiers[4][4] = GameCore.MOD_WILD
+
+	core._resolve_wildcards()
+
+	if core.board[1][0] != "A":
+		push_error("TC25: frozen wild was re-resolved to '%s' — should stay 'A'" % core.board[1][0])
+		return false
+	if core.board[4][4] != "A":
+		push_error("TC25: new wild should resolve to 'A' (CAT), got '%s'" % core.board[4][4])
+		return false
+	return true
+
 # TSM7 - Empty build yields zero MOD_2X tiles across N refills.
 func test_empty_build_no_modifiers() -> bool:
 	var core = GameCore.new(600, {})
@@ -482,11 +618,12 @@ func test_upgrade_auto_pick_at_intervals() -> bool:
 	if lmod_count < 1:
 		push_error("TSM10: expected letter_modifiers to have entries after rounds 4 and 7, got %d" % lmod_count)
 		return false
-	# Each auto-picked value should be either MOD_2X or MOD_3X (random 1/3 chance of 3x).
+	# Each auto-picked value should be a letter-bound modifier (never MOD_WILD,
+	# which lives in modifier_build instead).
 	for letter in core.letter_modifiers:
 		var v: String = core.letter_modifiers[letter]
-		if v != GameCore.MOD_2X and v != GameCore.MOD_3X:
-			push_error("TSM10: expected letter_modifiers[%s] to be MOD_2X or MOD_3X, got '%s'" % [letter, v])
+		if v != GameCore.MOD_2X and v != GameCore.MOD_3X and v != GameCore.MOD_WORD_2X and v != GameCore.MOD_WORD_3X:
+			push_error("TSM10: expected letter_modifiers[%s] to be a letter-bound modifier, got '%s'" % [letter, v])
 			return false
 
 	return true
@@ -533,6 +670,81 @@ func test_upgrade_offers_distinct_unowned_deterministic() -> bool:
 			push_error("TSM11B: same seed produced different offers at index %d" % i)
 			return false
 
+	return true
+
+# TC26 - A blank is a fallback, not a substitute: place_pending spends a real tile
+# when the rack has the letter and only reaches for the wild when it does not.
+# Regression — skipping wilds outright left no route to ever place one.
+func test_wild_is_placement_fallback_not_substitute() -> bool:
+	var core = GameCore.new(900)
+	core.rack = [
+		{"letter": "E", "modifier": GameCore.MOD_NONE},
+		{"letter": "Q", "modifier": GameCore.MOD_WILD},
+	]
+	if not core.place_pending("E", Vector2i(0, 0)):
+		push_error("TC26: place_pending('E') failed with a real E in the rack")
+		return false
+	if core.board_modifiers[0][0] != GameCore.MOD_NONE:
+		push_error("TC26: spent the wildcard while a real E was available")
+		return false
+	if not core.place_pending("Z", Vector2i(2, 2)):
+		push_error("TC26: place_pending('Z') failed — the wildcard should cover it")
+		return false
+	if core.board_modifiers[2][2] != GameCore.MOD_WILD:
+		push_error("TC26: expected the wildcard on (2,2), got '%s'" % core.board_modifiers[2][2])
+		return false
+	if not core.rack.is_empty():
+		push_error("TC26: expected an empty rack, got %d tiles" % core.rack.size())
+		return false
+	return true
+
+# TC27 - A wildcard is never spent on a discard.
+func test_wild_is_not_discardable() -> bool:
+	var core = GameCore.new(901)
+	core.rack = [{"letter": "E", "modifier": GameCore.MOD_WILD}]
+	var before: int = core.discards_left
+	if core.discard_tile("E"):
+		push_error("TC27: discarded a wildcard")
+		return false
+	if core.discards_left != before:
+		push_error("TC27: discard budget spent on a rejected wildcard discard")
+		return false
+	return true
+
+# TSM12 - {MOD_WILD: 2} guarantees exactly 2 wild tiles in the rack, including
+# after a later refill.
+func test_wild_build_guarantees_count() -> bool:
+	var core = GameCore.new(700, {GameCore.MOD_WILD: 2})
+	var count := 0
+	for t in core.rack:
+		if t.modifier == GameCore.MOD_WILD:
+			count += 1
+	if count != 2:
+		push_error("TSM12 initial: expected 2 MOD_WILD tiles, got %d" % count)
+		return false
+	core.rack.clear()
+	core.refill_rack()
+	count = 0
+	for t in core.rack:
+		if t.modifier == GameCore.MOD_WILD:
+			count += 1
+	if count != 2:
+		push_error("TSM12 refill: expected 2 MOD_WILD tiles, got %d" % count)
+		return false
+	return true
+
+# TSM13 - A MOD_WILD offer routed through the auto-pick increments
+# modifier_build, leaving letter_modifiers untouched.
+func test_wild_offer_routes_to_build() -> bool:
+	var core = GameCore.new(1)
+	var offer := {"letter": "?", "modifier": GameCore.MOD_WILD}
+	core._apply_upgrade_offer(offer)
+	if core.modifier_build.get(GameCore.MOD_WILD, 0) != 1:
+		push_error("TSM13: expected modifier_build[MOD_WILD] == 1, got %s" % str(core.modifier_build))
+		return false
+	if core.letter_modifiers.size() != 0:
+		push_error("TSM13: letter_modifiers should be untouched, got %s" % str(core.letter_modifiers))
+		return false
 	return true
 
 # Test discard excludes same letter on replacement draw

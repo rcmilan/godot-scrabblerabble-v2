@@ -22,6 +22,11 @@ const C_MOD_GRADIENT_LEFT    := Color(0.0,        0.0,         0.5019, 1.0)
 const C_MOD_GRADIENT_RIGHT   := Color(16.0/255.0, 132.0/255.0, 208.0/255.0, 1.0)
 const C_MOD3X_GRADIENT_LEFT  := Color(0.0,         0.376, 0.0,   1.0)
 const C_MOD3X_GRADIENT_RIGHT := Color(0.188,        0.753, 0.188, 1.0)
+const C_WORD2X_GRADIENT_LEFT  := Color(0.4,  0.0,  0.4,  1.0)
+const C_WORD2X_GRADIENT_RIGHT := Color(0.72, 0.33, 0.72, 1.0)
+const C_WORD3X_GRADIENT_LEFT  := Color(0.55, 0.27, 0.0,  1.0)
+const C_WORD3X_GRADIENT_RIGHT := Color(1.0,  0.65, 0.0,  1.0)
+const C_WILD_BODY             := Color(0.75, 0.75, 0.75, 1.0)
 const C_LABEL_MOD            := Color(1.0, 1.0, 1.0, 1.0)
 const C_LABEL_LETTER         := Color(0.0, 0.0, 0.502, 1.0)
 const C_LABEL_POINT          := Color(0.251, 0.251, 0.251, 1.0)
@@ -55,9 +60,16 @@ func set_modifier(value: String) -> void:
 		queue_redraw()
 
 func _refresh_visual() -> void:
+	if modifier == GameData.MOD_WILD:
+		letter_label.text = "?"
+		point_label.text  = "0"
+		letter_label.add_theme_color_override("font_color", C_LABEL_LETTER)
+		point_label.add_theme_color_override("font_color", C_LABEL_POINT)
+		return
 	letter_label.text = letter
 	point_label.text  = str(GameData.score_for_letter(letter))
-	if modifier == GameData.MOD_2X or modifier == GameData.MOD_3X:
+	if modifier == GameData.MOD_2X or modifier == GameData.MOD_3X \
+			or modifier == GameData.MOD_WORD_2X or modifier == GameData.MOD_WORD_3X:
 		letter_label.add_theme_color_override("font_color", C_LABEL_MOD)
 		point_label.add_theme_color_override("font_color", C_LABEL_MOD)
 	else:
@@ -73,6 +85,14 @@ func _draw() -> void:
 	elif modifier == GameData.MOD_3X:
 		_draw_horizontal_gradient(Rect2(1, 1, w - 2, h - 2),
 			C_MOD3X_GRADIENT_LEFT, C_MOD3X_GRADIENT_RIGHT)
+	elif modifier == GameData.MOD_WORD_2X:
+		_draw_horizontal_gradient(Rect2(1, 1, w - 2, h - 2),
+			C_WORD2X_GRADIENT_LEFT, C_WORD2X_GRADIENT_RIGHT)
+	elif modifier == GameData.MOD_WORD_3X:
+		_draw_horizontal_gradient(Rect2(1, 1, w - 2, h - 2),
+			C_WORD3X_GRADIENT_LEFT, C_WORD3X_GRADIENT_RIGHT)
+	elif modifier == GameData.MOD_WILD:
+		draw_rect(Rect2(1, 1, w - 2, h - 2), C_WILD_BODY)
 	# Raised bevel: light top-left edges, dark bottom-right edges
 	draw_line(Vector2(0, 0),     Vector2(w - 1, 0),     C_OUTER_LIGHT)
 	draw_line(Vector2(0, 0),     Vector2(0, h - 1),     C_OUTER_LIGHT)

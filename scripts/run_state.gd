@@ -12,7 +12,7 @@ enum Mode { EASY, MEDIUM, HARD, ENDLESS }
 
 const TURNS_PER_ROUND:        int = 3
 const INITIAL_TILES_PER_TURN: int = 4
-const INITIAL_TARGET_SCORE:   int = 28
+const INITIAL_TARGET_SCORE:   int = 32
 const UPGRADE_EVERY_N_ROUNDS: int = 3
 const DISCARDS_PER_ROUND:     int = 3
 const ROUNDS_PER_DIFFICULTY:  int = 5
@@ -22,14 +22,15 @@ const ENDLESS_GROWTH:         float = 1.28
 # Per-round difficulty targets, retuned for whole-board scoring via the sim:
 # Easy clears for any competent play (casual ~80%), Medium ~80% for a solid
 # player, Hard ~65% even for expert play. See scripts/sim/README.md.
-# Scaled ×1.27 when premium cells landed — they inflate scores ~20% across every
-# strategy, so the tables move with them to hold those win rates. Difficulty
-# modes are live-only (not in game_core.gd), so the factor is measured on the
-# Endless curve rather than by simulating the modes directly.
+# Scaled ×1.27 when premium cells landed, then ×1.143 for word multipliers and
+# wildcards (issue #12) — each inflates scores, so the tables move with them to
+# hold those win rates. Difficulty modes are live-only (not in game_core.gd), so
+# the factor is measured on the Endless curve rather than by simulating the modes
+# directly: it is INITIAL_TARGET_SCORE's own sweep result, 32 / 28.
 const DIFFICULTY_TARGETS := {
-	Mode.EASY:   [11, 23, 33, 43, 56],
-	Mode.MEDIUM: [20, 46, 66, 89, 117],
-	Mode.HARD:   [28, 66, 102, 145, 196],
+	Mode.EASY:   [13, 26, 38, 49, 64],
+	Mode.MEDIUM: [23, 53, 75, 102, 134],
+	Mode.HARD:   [32, 75, 117, 166, 224],
 }
 
 var current_round:  int   = 1
