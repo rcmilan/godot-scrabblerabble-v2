@@ -124,8 +124,15 @@ func _update_caption() -> void:
 	var offer: Dictionary = _offers[_selected_index]
 	var letter: String = offer.get("letter", "?")
 	var modifier: String = offer.get("modifier", "")
-	var mod_word := "double" if modifier == GameData.MOD_2X else "triple"
-	_caption.text = "Every %s tile scores %s points for the rest of the run." % [letter, mod_word]
+	if modifier == GameData.MOD_WORD_2X:
+		_caption.text = "Every %s tile doubles the whole word." % letter
+	elif modifier == GameData.MOD_WORD_3X:
+		_caption.text = "Every %s tile triples the whole word." % letter
+	elif modifier == GameData.MOD_WILD:
+		_caption.text = "A blank tile. Plays as any letter, scores nothing."
+	else:
+		var mod_word := "double" if modifier == GameData.MOD_2X else "triple"
+		_caption.text = "Every %s tile scores %s points for the rest of the run." % [letter, mod_word]
 
 func _on_banner_draw() -> void:
 	var banner_rect := _banner.get_rect()

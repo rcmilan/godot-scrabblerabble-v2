@@ -57,9 +57,12 @@ length-2..8 substring of that run — each with the word bonus
   (`HELLO` = `HE` + `HELL` + `HELLO`).
 - **A run with no valid word scores 0.** There is no consolation
   bare-letter scoring — gibberish neither glows nor scores.
-- **Scoring order, deterministic and identical in live and sim:** tile
-  modifier (2×/3×) → cell letter premium (DL/TL) → word bonus → cell word
-  premiums (DW/TW).
+- **Scoring order, deterministic and identical in live and sim:** wildcard
+  zeroes the letter (`MOD_WILD` → 0 pts, before any multiplier) → tile letter
+  modifier (2×/3×) → cell letter premium (DL/TL) → sum → word bonus → cell
+  word premiums (DW/TW) → tile word modifiers (`MOD_WORD_2X`/`MOD_WORD_3X`).
+  Every word multiplier — cell *and* tile — lands in one `word_mult`
+  accumulator and they **multiply** (two ×2 → ×4).
 
 **Shared source of truth.** In `main.gd`:
 
@@ -87,24 +90,37 @@ per-tile animated rainbow can't be expressed as either.
   the glow is a **live preview**; locked words stay lit until
   `board.clear_all()` on round win.
 
-**Retuning is measured, never guessed.** Whole-board re-scoring and premium
-cells both inflate turn scores hard, so `INITIAL_TARGET_SCORE` carries the
-correction — it was raised 22 → 28 when premiums landed, restoring the
-pre-premium survival curve (`longest_word` back to ~11.1 mean rounds from
-12.4; every strategy within ~0.5 of its old baseline). Method: the Endless
-curve is `target(r) = INITIAL_TARGET_SCORE × ENDLESS_GROWTH^(r-1)`, so scaling
-the **initial target** scales the whole curve uniformly and preserves its
-shape — raise it, not `ENDLESS_GROWTH`, which compounds and warps early vs
-late rounds. Sweep candidates through the simulator (200 runs × all
-strategies) and compare mean rounds against the previous baseline before
-picking a number. Mirror every constant change into `game_core.gd`, and
-expect `TC1` (constants) / `TC6` (target curve) / `TC7` (post-advance target)
-to need recomputing — they pin these values by hand.
+**Retuning is measured, never guessed.** Whole-board re-scoring, premium cells,
+and word multipliers all inflate turn scores hard, so `INITIAL_TARGET_SCORE`
+carries the correction. It has been raised twice: **22 → 28** when premiums
+landed, then **28 → 32** for tile modifiers v2 (word multipliers + wildcards),
+each time restoring the previous survival curve — every strategy back within
+~0.35 mean rounds of its pre-feature baseline.
+
+Method: the Endless curve is
+`target(r) = INITIAL_TARGET_SCORE × ENDLESS_GROWTH^(r-1)`, so scaling the
+**initial target** scales the whole curve uniformly and preserves its shape —
+raise it, not `ENDLESS_GROWTH`, which compounds and warps early vs late rounds.
+Sweep candidates through the simulator and pick the one whose mean-rounds
+vector is closest to the pre-feature baseline. Two traps worth knowing:
+
+- **Measure score *per round*, not mean score.** Raw mean score is confounded
+  with survival — a strategy that lives longer banks more by definition. Word
+  multipliers inflated raw score ~19% but score-per-round only ~11%, and it's
+  the latter that predicts the right target (28 × 1.11 ≈ 31; the sweep said 32).
+- **`TC1` (constants) / `TC6` (target curve) / `TC7` (post-advance target) pin
+  these numbers by hand and *will* fail.** Recompute them, don't relax them.
+  TC6 and TC7 cross-check each other on round 2.
+
+Mirror every constant change into `game_core.gd`.
 
 `DIFFICULTY_TARGETS` (Easy/Medium/Hard) is **live-only and not modeled in the
 sim** by design (see `scripts/sim/README.md`), so it can't be measured
-directly. It is scaled by the inflation factor measured on the Endless curve
-(×1.27 for premiums) to hold its documented win rates.
+directly. It is scaled by the same factor the Endless sweep produced (×1.27 for
+premiums, then ×1.143 = 32/28 for modifiers v2) to hold its documented win
+rates. Those win rates therefore ride on that transfer and are **not themselves
+simulated** — the factor is uniform across all 8 strategies, which is what makes
+the transfer defensible, but it remains inferred rather than measured.
 
 ## Tile modifiers
 
@@ -115,8 +131,38 @@ lowest-value tile). A modified tile multiplies its letter's contribution
 (×2 / ×3) wherever it sits in a scored word; the word bonus stacks on top.
 See **Scoring & word highlight** for how words are found.
 
+**Word multipliers (MOD_WORD_2X / MOD_WORD_3X):** multiply the *whole* scored
+run rather than one letter, and stack multiplicatively with DW/TW cells (same
+`word_mult` accumulator). Acquired from the upgrade wizard exactly like
+2×/3× — `letter_modifiers[letter] = "w2x"` makes every tile of that letter a
+word multiplier.
+
+**Wildcards (MOD_WILD):** score **0** for their slot but still satisfy the
+dictionary, so they complete words. Two rules govern them, and both exist in
+`main.gd` **and** `game_core.gd` — change one, change both:
+
+- **A blank is a fallback, not a substitute.** `rack.gd::find_tile_with_letter`
+  and `game_core.gd::_find_rack_index_for_letter` take a real tile when the
+  rack holds the letter and reach for the wild only when it doesn't. Skipping
+  wilds outright leaves **no route to ever place one** (that lookup is the only
+  tile-by-letter path the keyboard and autoplay share) — a bug this feature
+  shipped once already. Wilds are never discardable.
+- **The letter is auto-picked, then frozen at lock.** `_resolve_wildcards()`
+  tries all 26 letters against the whole board and keeps the score-maximizing
+  one (strict `>`, so ties go alphabetical). Live it runs from `_update_hud()`
+  and skips locked cells (`current_tile == null`); the sim has no lock step, so
+  it tracks a `_resolved_wilds` set instead. Both converge on the same letters
+  because live's *last* pre-PLAY resolve sees the same board the sim's single
+  end-of-turn pass does. **Never re-resolve a locked wild** — that was a silent
+  live/sim scoring divergence.
+
+Unlike letter-bound modifiers, a wildcard lives in `RunState.modifier_build`
+(a `{mod: count}` rack guarantee), not `letter_modifiers` — a blank has no
+letter to bind to. Picking one in the wizard is `add_to_build`'s only caller.
+
 **Visual implementation:** Modifier visuals (Win98 navy→sky-blue gradient for
-2×, green gradient for 3×) are drawn in `tile.gd::_draw` and
+2×, green gradient for 3×, purple for word-2×, amber for word-3×, flat silver
+`?` for a blank) are drawn in `tile.gd::_draw` and
 `board_cell.gd::_draw`, not as a theme variation, because the gradient body
 can't be a `StyleBoxFlat`. Label colors are hardcoded constants
 (`C_LABEL_*`) — `get_theme_color_override` does not exist in Godot 4.6.1, so
@@ -131,11 +177,19 @@ board wipe is by omission (`clear_pending()` / `lock_pending()` /
 `scripts/sim/tests/test_game_core.gd`.
 
 **Sim parity:** `game_core.gd` mirrors the modifier system via
-`board_modifiers[x][y]` and the `MOD_NONE` / `MOD_2X` / `MOD_3X` constants.
-If `_ensure_modifier*`, board-modifier logic, scoring, or color constants
-change in `rack.gd`, `board_cell.gd`, `tile.gd`, or `game_data.gd`, update
-`game_core.gd` immediately. Modifier tests: `TC9`–`TC14`, `TSM7`–`TSM11` in
-`scripts/sim/tests/test_game_core.gd`.
+`board_modifiers[x][y]` and the `MOD_NONE` / `MOD_2X` / `MOD_3X` /
+`MOD_WORD_2X` / `MOD_WORD_3X` / `MOD_WILD` constants.
+If `_ensure_modifier*`, board-modifier logic, scoring, wildcard selection or
+resolution, upgrade-offer rolling (`MODIFIER_WEIGHTS`, `_offer_value`), or
+color constants change in `rack.gd`, `board_cell.gd`, `tile.gd`, or
+`game_data.gd`, update `game_core.gd` immediately. Modifier tests: `TC9`–`TC14`,
+`TC20`–`TC27`, `TSM7`–`TSM13` in `scripts/sim/tests/test_game_core.gd`.
+
+> **A green test suite does not prove parity.** Both wildcard bugs above passed
+> 57 green tests. What caught them was *running the game* with the rare path
+> forced (`modifier_build["wild"] = 2` at reset) and grepping the log for
+> `[Wild] resolved` / `wild@`. For any modifier that only appears via a random
+> upgrade roll, force it and read the logs — the tests won't.
 
 ## Controls (place / move / return tiles)
 

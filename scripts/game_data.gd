@@ -1,9 +1,12 @@
 # res://scripts/game_data.gd
 extends Node
 
-const MOD_NONE: String = ""
-const MOD_2X:   String = "2x"
-const MOD_3X:   String = "3x"
+const MOD_NONE:    String = ""
+const MOD_2X:      String = "2x"
+const MOD_3X:      String = "3x"
+const MOD_WORD_2X: String = "w2x"
+const MOD_WORD_3X: String = "w3x"
+const MOD_WILD:    String = "wild"
 
 const PREM_NONE: String = ""
 const PREM_DL:   String = "dl"

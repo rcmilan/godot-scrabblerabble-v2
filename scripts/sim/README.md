@@ -56,7 +56,9 @@ Consequence for tuning: `DIFFICULTY_TARGETS` cannot be measured directly. Retune
 
 `target(r) = INITIAL_TARGET_SCORE × ENDLESS_GROWTH^(r-1)`, rounded to the nearest even number. To offset a scoring change, scale **`INITIAL_TARGET_SCORE`** — it scales the whole curve uniformly and preserves its shape. Do not reach for `ENDLESS_GROWTH`: it compounds, so it leaves early rounds soft while making late rounds unreachable.
 
-Method: sweep candidate values, run `--runs 200` across all strategies, and compare mean rounds against the pre-change baseline. Premium cells took it 22 → 28, which put `longest_word` (the expert benchmark) back on its pre-premium 11.3 mean rounds.
+Method: sweep candidate values, run `--runs 200` across all strategies, and compare mean rounds against the pre-change baseline. Premium cells took it 22 → 28; word multipliers + wildcards (issue #12) took it 28 → 32, pulling every strategy back within ~0.35 mean rounds of its pre-feature baseline.
+
+Seed a candidate from **score per round**, not mean score — raw score is confounded with survival, since a strategy that lives longer banks more by definition. Modifiers v2 inflated raw score ~19% but score-per-round only ~11%, and it was the latter that predicted the sweep winner.
 
 ## Modifiers
 
@@ -66,7 +68,9 @@ Method: sweep candidate values, run `--runs 200` across all strategies, and comp
 
 **Rack shape:** `rack` is now `Array` of `{"letter": String, "modifier": String}` dicts instead of `Array[String]`. Use `rack_letters()` wherever strategies or tests need plain letter strings. The helper `draw_tile()` always produces `MOD_NONE`; `_ensure_modifier_in_rack(MOD_2X)` promotes one tile per refill.
 
-**Scoring:** `_calculate_turn_score` reads `board_modifiers` and `board_premiums` per cell when summing letter points. Order, identical to the live game: tile modifier (2×/3×) → cell letter premium (DL/TL) → word bonus → cell word premiums (DW/TW). Tie scoring changes in `main.gd` and `game_core.gd` together; they are the same calculation in both files.
+**Scoring:** `_calculate_turn_score` reads `board_modifiers` and `board_premiums` per cell when summing letter points. Order, identical to the live game: wildcard zeroes the letter (`MOD_WILD`, before any multiplier) → tile letter modifier (2×/3×) → cell letter premium (DL/TL) → sum → word bonus → cell word premiums (DW/TW) → tile word modifiers (`MOD_WORD_2X`/`MOD_WORD_3X`). Cell and tile word multipliers share one `word_mult` accumulator and multiply. Tie scoring changes in `main.gd` and `game_core.gd` together; they are the same calculation in both files.
+
+**Wildcards:** `_resolve_wildcards()` picks each blank's letter by brute-force maximisation over A–Z (strict `>`, so ties go alphabetical), then records the cell in `_resolved_wilds` so it is never re-optimised on a later turn. That set is the sim's stand-in for the live game's tile lock — without it a blank keeps improving as the board fills, and sim scores drift above live ones. `_find_rack_index_for_letter` mirrors `rack.gd::find_tile_with_letter`: a blank is a **fallback**, spent only when the rack has no real tile for the requested letter, and never discarded.
 
 **Drift risk:** If `_ensure_modifier_in_rack`, `board_modifiers`, or the modifier constants change in either `game_core.gd` or the live files (`rack.gd`, `board_cell.gd`, `game_data.gd`), update the counterpart immediately or sim parity will silently diverge. Test coverage: TSM1–TSM6 verify modifier guarantee, promotion ordering, scoring with modifiers, and determinism.
 
@@ -130,13 +134,21 @@ the title (after game over) sees the flag and quits the app.
 At the upgrade rounds the game offers letter-modifier upgrades. The offer
 generation and auto-pick are duplicated live/sim and must stay in sync.
 
-- **Offers:** 3 distinct, distribution-weighted, unowned letters with
-  independent 67/33 `2x`/`3x` rolls. The generator is duplicated in
-  `main.gd` and `game_core.gd::_generate_upgrade_offers` — **change both
-  together.**
-- **Auto-pick heuristic** (autoplay + sim):
-  `LETTER_DISTRIBUTION × LETTER_POINTS × multiplier`, ties broken by offer
-  order. Mirrored as `_offer_value` in both files.
+- **Offers:** 3 distinct, distribution-weighted, unowned letters. The modifier
+  is a weighted roll over `MODIFIER_WEIGHTS` (`2x` 40 / `3x` 20 / `w2x` 20 /
+  `w3x` 10 / `wild` 10). A `wild` roll emits a letterless `{"letter": "?"}`
+  offer, does **not** consume a letter from the pool, and is capped at one per
+  wizard. The generator is duplicated in `main.gd` and
+  `game_core.gd::_generate_upgrade_offers` — **change both together.**
+- **Auto-pick heuristic** (autoplay + sim): **marginal points gained**, i.e.
+  `(multiplier - 1)`, not `× multiplier` — otherwise a word multiplier (worth
+  ~a whole word) can't be compared against a letter multiplier (worth a couple
+  of points). Letter mods score `dist × LETTER_POINTS × (m-1)`, word mods
+  `dist × TYPICAL_WORD_POINTS × (m-1)`, a blank a flat `WILD_OFFER_VALUE`.
+  Ties broken by offer order. Mirrored as `_offer_value` in both files.
+- **Applying a pick:** `_apply_upgrade_offer` routes a `wild` into
+  `modifier_build` (a rack guarantee) and everything else into
+  `letter_modifiers`. A blank has no letter to bind to.
 - **Test coverage:** TSM10 (`test_upgrade_auto_pick_at_intervals` — offers
   appear at the right rounds), TSM11
   (`test_upgrade_offers_distinct_unowned_deterministic` — offers are

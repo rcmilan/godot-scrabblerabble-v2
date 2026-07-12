@@ -8,7 +8,7 @@ extends RefCounted
 # Progression constants (copied from RunState, main.gd, board.gd, rack.gd).
 const TURNS_PER_ROUND:        int = 3
 const INITIAL_TILES_PER_TURN: int = 4
-const INITIAL_TARGET_SCORE:   int = 28
+const INITIAL_TARGET_SCORE:   int = 32
 const ENDLESS_GROWTH:         float = 1.28
 const WORD_BONUS_MULTIPLIER:  int = 2
 const BOARD_SIZE:             int = 8
@@ -17,9 +17,23 @@ const UPGRADE_EVERY_N_ROUNDS: int = 3
 const UPGRADE_OFFER_COUNT: int = 3
 const DISCARDS_PER_ROUND:     int = 3
 
-const MOD_NONE: String = ""
-const MOD_2X:   String = "2x"
-const MOD_3X:   String = "3x"
+const MOD_NONE:    String = ""
+const MOD_2X:      String = "2x"
+const MOD_3X:      String = "3x"
+const MOD_WORD_2X: String = "w2x"
+const MOD_WORD_3X: String = "w3x"
+const MOD_WILD:    String = "wild"
+
+const MODIFIER_WEIGHTS := {
+	MOD_2X: 40, MOD_3X: 20, MOD_WORD_2X: 20, MOD_WORD_3X: 10, MOD_WILD: 10,
+}
+# ponytail: first-guess weights. Retune with the simulator alongside
+# INITIAL_TARGET_SCORE if word-mults dominate every run.
+
+# ponytail: rough mean scored-word value
+const TYPICAL_WORD_POINTS: int = 12
+# ponytail: flat; a blank has no letter to weight
+const WILD_OFFER_VALUE: int = 60
 
 const PREM_NONE: String = ""
 const PREM_DL:   String = "dl"
@@ -75,6 +89,10 @@ var board: Array = []
 var board_modifiers: Array = []
 # Parallel premium-cell state: same shape as board, default PREM_NONE.
 var board_premiums: Array = []
+# The live game freezes a resolved blank's letter when the tile locks at PLAY.
+# The sim has no lock step, so track resolved wilds explicitly or they would be
+# re-optimised every turn as the board grows.
+var _resolved_wilds: Dictionary = {}
 
 # Rack: each entry is {"letter": String, "modifier": String}.
 var rack: Array = []
@@ -237,23 +255,37 @@ func place_pending_tile(tile: Dictionary, pos: Vector2i) -> bool:
 	board_modifiers[pos.x][pos.y] = tile.modifier
 	return true
 
+# A blank is a fallback, not a substitute: play the real letter when the rack has
+# one and spend the wildcard only when it doesn't. Mirrors
+# rack.gd::find_tile_with_letter — both sides must pick the same tile for a letter.
+func _find_rack_index_for_letter(letter: String) -> int:
+	for i in rack.size():
+		if rack[i].letter == letter and rack[i].modifier != MOD_WILD:
+			return i
+	for i in rack.size():
+		if rack[i].modifier == MOD_WILD:
+			return i
+	return -1
+
 # Legacy wrapper: finds and removes the letter from rack, then calls place_pending_tile.
 func place_pending(letter: String, pos: Vector2i) -> bool:
-	for i in rack.size():
-		if rack[i].letter == letter:
-			var tile_dict = rack[i]
-			rack.remove_at(i)
-			if place_pending_tile(tile_dict, pos):
-				return true
-			rack.append(tile_dict)
-			return false
+	var i := _find_rack_index_for_letter(letter)
+	if i == -1:
+		return false
+	var tile_dict = rack[i]
+	rack.remove_at(i)
+	if place_pending_tile(tile_dict, pos):
+		return true
+	rack.insert(i, tile_dict)
 	return false
 
+# Wilds are never discarded — too valuable to spend on a reroll, and the live
+# game guards the same way (main.gd::discard_rack_tile).
 func discard_tile(letter: String) -> bool:
 	if discards_left <= 0:
 		return false
 	for i in rack.size():
-		if rack[i]["letter"] == letter:
+		if rack[i]["letter"] == letter and rack[i]["modifier"] != MOD_WILD:
 			rack.remove_at(i)
 			var new_letter := _draw_letter_raw_excluding(letter)
 			rack.insert(i, {"letter": new_letter, "modifier": MOD_NONE})
@@ -262,7 +294,30 @@ func discard_tile(letter: String) -> bool:
 			return true
 	return false
 
+# ponytail: greedy per-wild, not a joint 26^n search. Two blanks in one turn
+# can theoretically miss a better pair. Board is 8x8 and a turn places <= 8
+# tiles — swap in an exhaustive search only if a sim run shows it matters.
+func _resolve_wildcards() -> void:
+	for x in BOARD_SIZE:
+		for y in BOARD_SIZE:
+			if board_modifiers[x][y] != MOD_WILD:
+				continue
+			if _resolved_wilds.has(Vector2i(x, y)):
+				continue
+			var best_letter := "A"
+			var best_score := -1
+			for i in 26:
+				var letter: String = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[i]
+				board[x][y] = letter
+				var score := _calculate_turn_score([])
+				if score > best_score:
+					best_score = score
+					best_letter = letter
+			board[x][y] = best_letter
+			_resolved_wilds[Vector2i(x, y)] = true
+
 func end_turn(pending_positions: Array) -> int:
+	_resolve_wildcards()
 	var turn_score := _calculate_turn_score(pending_positions)
 	round_score += turn_score
 	turns_left -= 1
@@ -275,8 +330,7 @@ func end_turn(pending_positions: Array) -> int:
 				for offer in offers:
 					if _offer_value(offer) > _offer_value(best):
 						best = offer
-				letter_modifiers[best["letter"]] = best["modifier"]
-				print("[GameCore] upgrade auto-pick — %s ×%s" % [best["letter"], best["modifier"]])
+				_apply_upgrade_offer(best)
 	elif turns_left <= 0:
 		is_game_over = true
 	refill_rack()
@@ -348,10 +402,16 @@ func _score_word_sim(w: Dictionary) -> int:
 		var cell_pos: Vector2i = w.cells[i]
 		var letter_pts: int = LETTER_POINTS.get(ch.to_upper(), 0)
 		var mod: String = board_modifiers[cell_pos.x][cell_pos.y]
-		if mod == MOD_2X:
+		if mod == MOD_WILD:
+			letter_pts = 0
+		elif mod == MOD_2X:
 			letter_pts *= 2
 		elif mod == MOD_3X:
 			letter_pts *= 3
+		elif mod == MOD_WORD_2X:
+			word_mult *= 2
+		elif mod == MOD_WORD_3X:
+			word_mult *= 3
 		var prem: String = board_premiums[cell_pos.x][cell_pos.y]
 		if prem == PREM_DL:
 			letter_pts *= 2
@@ -394,7 +454,20 @@ func clear_board() -> void:
 			board[x][y] = ""
 			board_modifiers[x][y] = MOD_NONE
 			board_premiums[x][y] = PREM_NONE
+	_resolved_wilds.clear()
 	_reroll_premiums()
+
+func _roll_modifier() -> String:
+	var total := 0
+	for w in MODIFIER_WEIGHTS.values():
+		total += w
+	var r := rng.randi() % total
+	var acc := 0
+	for mod in MODIFIER_WEIGHTS.keys():
+		acc += MODIFIER_WEIGHTS[mod]
+		if r < acc:
+			return mod
+	return MOD_2X
 
 func _generate_upgrade_offers() -> Array[Dictionary]:
 	var pool: Array[String] = []
@@ -409,22 +482,47 @@ func _generate_upgrade_offers() -> Array[Dictionary]:
 	for letter in LETTER_DISTRIBUTION:
 		if not letter_modifiers.has(letter):
 			distinct_count += 1
+	var wild_offered := false
 	while offers.size() < UPGRADE_OFFER_COUNT and not pool.is_empty():
 		if picked.size() >= distinct_count:
 			break
+		var mod := _roll_modifier()
+		if mod == MOD_WILD:
+			if wild_offered:
+				while mod == MOD_WILD:
+					mod = _roll_modifier()
+			else:
+				wild_offered = true
+				offers.append({"letter": "?", "modifier": MOD_WILD})
+				continue
 		var letter: String = pool[rng.randi() % pool.size()]
 		if picked.has(letter):
 			continue
 		picked.append(letter)
-		var mod: String = MOD_3X if rng.randi() % 3 == 0 else MOD_2X
 		offers.append({"letter": letter, "modifier": mod})
 	if offers.size() < UPGRADE_OFFER_COUNT:
 		print("[GameCore] letter pool exhausted — offering %d" % offers.size())
 	return offers
 
 func _offer_value(offer: Dictionary) -> int:
-	var mult := 3 if offer["modifier"] == MOD_3X else 2
-	return LETTER_DISTRIBUTION[offer["letter"]] * LETTER_POINTS[offer["letter"]] * mult
+	var mod: String = offer["modifier"]
+	if mod == MOD_WILD:
+		return WILD_OFFER_VALUE
+	var letter: String = offer["letter"]
+	var dist: int = LETTER_DISTRIBUTION[letter]
+	if mod == MOD_WORD_2X or mod == MOD_WORD_3X:
+		var wm := 3 if mod == MOD_WORD_3X else 2
+		return dist * TYPICAL_WORD_POINTS * (wm - 1)
+	var lm := 3 if mod == MOD_3X else 2
+	return dist * LETTER_POINTS[letter] * (lm - 1)
+
+func _apply_upgrade_offer(offer: Dictionary) -> void:
+	if offer["modifier"] == MOD_WILD:
+		modifier_build[MOD_WILD] = modifier_build.get(MOD_WILD, 0) + 1
+		print("[GameCore] upgrade auto-pick — wildcard (build %d)" % modifier_build[MOD_WILD])
+	else:
+		letter_modifiers[offer["letter"]] = offer["modifier"]
+		print("[GameCore] upgrade auto-pick — %s ×%s" % [offer["letter"], offer["modifier"]])
 
 func _advance_round() -> void:
 	# Reset round state BEFORE advancing target, so progression is correct.
